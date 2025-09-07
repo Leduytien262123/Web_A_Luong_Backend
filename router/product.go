@@ -10,7 +10,6 @@ import (
 func SetupProductRoutes(r *gin.Engine) {
 	productHandler := handle.NewProductHandler()
 
-	// Routes công khai
 	publicRoutes := r.Group("/api/products")
 	{
 		publicRoutes.GET("/", productHandler.GetProducts)
@@ -18,16 +17,15 @@ func SetupProductRoutes(r *gin.Engine) {
 		publicRoutes.GET("/sku/:sku", productHandler.GetProductBySKU)
 	}
 
-	// Routes được bảo vệ (admin và owner)
-	adminRoutes := r.Group("/api/admin/products")
+	adminRoutes := r.Group("/api/admin/manage")
 	adminRoutes.Use(utils.AuthMiddleware())
-	adminRoutes.Use(utils.AdminMiddleware()) // Bây giờ cho phép cả admin và owner
+	adminRoutes.Use(utils.AdminMiddleware())
 	{
-		adminRoutes.GET("/", productHandler.GetProducts)
-		adminRoutes.GET("/:id", productHandler.GetProductByID)
-		adminRoutes.POST("/", productHandler.CreateProduct)
-		adminRoutes.PUT("/:id", productHandler.UpdateProduct)
-		adminRoutes.DELETE("/:id", productHandler.DeleteProduct)
-		adminRoutes.PATCH("/:id/stock", productHandler.UpdateProductStock)
+		adminRoutes.GET("/products", productHandler.GetProducts)
+		adminRoutes.GET("/product/:id", productHandler.GetProductByID)
+		adminRoutes.POST("/product", productHandler.CreateProduct)
+		adminRoutes.PUT("/product/:id", productHandler.UpdateProduct)
+		adminRoutes.DELETE("/product/:id", productHandler.DeleteProduct)
+		adminRoutes.PATCH("/product/:id/stock", productHandler.UpdateProductStock)
 	}
 }

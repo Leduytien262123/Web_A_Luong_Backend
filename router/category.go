@@ -19,14 +19,14 @@ func SetupCategoryRoutes(r *gin.Engine) {
 	}
 
 	// Routes được bảo vệ (admin và owner)
-	adminRoutes := r.Group("/api/admin/categories")
+	adminRoutes := r.Group("/api/admin/manage")
 	adminRoutes.Use(utils.AuthMiddleware())
 	adminRoutes.Use(utils.AdminMiddleware()) // Bây giờ cho phép cả admin và owner
 	{
-		adminRoutes.GET("/", categoryHandler.GetCategories) 
-		adminRoutes.GET("/:id", categoryHandler.GetCategoryByID)
-		adminRoutes.POST("/", categoryHandler.CreateCategory)
-		adminRoutes.PUT("/:id", categoryHandler.UpdateCategory)
-		adminRoutes.DELETE("/:id", categoryHandler.DeleteCategory)
+		adminRoutes.GET("/categories", categoryHandler.GetCategories) 
+		adminRoutes.GET("/categories/:id", categoryHandler.GetCategoryByID)
+		adminRoutes.POST("/categories", categoryHandler.CreateCategory)
+		adminRoutes.PUT("/categories/:id", categoryHandler.UpdateCategory)
+		adminRoutes.DELETE("/categories/:id", categoryHandler.DeleteCategory)
 	}
 }

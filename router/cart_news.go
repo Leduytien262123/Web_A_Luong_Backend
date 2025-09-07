@@ -34,14 +34,14 @@ func SetupNewsRoutes(r *gin.Engine) {
 	}
 
 	// Routes admin
-	adminRoutes := r.Group("/api/admin/news")
+	adminRoutes := r.Group("/api/admin/manage")
 	adminRoutes.Use(utils.AuthMiddleware())
 	adminRoutes.Use(utils.AdminMiddleware())
 	{
-		adminRoutes.GET("/", newsHandler.GetNews) // Tất cả tin tức bao gồm cả chưa xuất bản
-		adminRoutes.GET("/:id", newsHandler.GetNewsByID)
-		adminRoutes.POST("/", newsHandler.CreateNews)
-		adminRoutes.PUT("/:id", newsHandler.UpdateNews)
-		adminRoutes.DELETE("/:id", newsHandler.DeleteNews)
+		adminRoutes.GET("/news", newsHandler.GetNews)
+		adminRoutes.GET("/new/:id", newsHandler.GetNewsByID)
+		adminRoutes.POST("/new", newsHandler.CreateNews)
+		adminRoutes.PUT("/new/:id", newsHandler.UpdateNews)
+		adminRoutes.DELETE("/new/:id", newsHandler.DeleteNews)
 	}
 }
