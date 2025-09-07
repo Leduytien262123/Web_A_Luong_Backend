@@ -51,6 +51,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		Email:    input.Email,
 		Password: hashedPassword,
 		FullName: input.FullName,
+		Avatar:   input.Avatar,
 		Role:     consts.ROLE_USER,
 	}
 
@@ -67,14 +68,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	}
 
 	response := gin.H{
-		"user": model.UserResponse{
-			ID:       user.ID,
-			Username: user.Username,
-			Email:    user.Email,
-			FullName: user.FullName,
-			Role:     user.Role,
-			IsActive: user.IsActive,
-		},
+		"user":  user.ToResponse(),
 		"token": token,
 	}
 
@@ -119,14 +113,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	}
 
 	response := gin.H{
-		"user": model.UserResponse{
-			ID:       user.ID,
-			Username: user.Username,
-			Email:    user.Email,
-			FullName: user.FullName,
-			Role:     user.Role,
-			IsActive: user.IsActive,
-		},
+		"user":  user.ToResponse(),
 		"token": token,
 	}
 
@@ -150,16 +137,7 @@ func (h *AuthHandler) GetProfile(c *gin.Context) {
 		return
 	}
 
-	response := model.UserResponse{
-		ID:       user.ID,
-		Username: user.Username,
-		Email:    user.Email,
-		FullName: user.FullName,
-		Role:     user.Role,
-		IsActive: user.IsActive,
-	}
-
-	helpers.SuccessResponse(c, consts.MSG_SUCCESS, response)
+	helpers.SuccessResponse(c, consts.MSG_SUCCESS, user.ToResponse())
 }
 
 func (h *AuthHandler) UpdateProfile(c *gin.Context) {
@@ -169,11 +147,7 @@ func (h *AuthHandler) UpdateProfile(c *gin.Context) {
 		return
 	}
 
-	var input struct {
-		FullName string `json:"full_name"`
-		Email    string `json:"email" binding:"email"`
-	}
-
+	var input model.UpdateUserInput
 	if err := c.ShouldBindJSON(&input); err != nil {
 		helpers.ValidationErrorResponse(c, consts.MSG_VALIDATION_ERROR)
 		return
@@ -197,20 +171,15 @@ func (h *AuthHandler) UpdateProfile(c *gin.Context) {
 		}
 		user.Email = input.Email
 	}
+	if input.Avatar != "" {
+		user.Avatar = input.Avatar
+	}
 
 	if err := h.userRepo.UpdateUser(user); err != nil {
 		helpers.ErrorResponse(c, http.StatusInternalServerError, consts.MSG_INTERNAL_ERROR, err)
 		return
 	}
 
-	response := model.UserResponse{
-		ID:       user.ID,
-		Username: user.Username,
-		Email:    user.Email,
-		FullName: user.FullName,
-		Role:     user.Role,
-		IsActive: user.IsActive,
-	}
-
-	helpers.SuccessResponse(c, consts.MSG_SUCCESS, response)
+	helpers.SuccessResponse(c, consts.MSG_SUCCESS, user.ToResponse())
 }
+

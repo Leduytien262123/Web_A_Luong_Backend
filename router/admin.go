@@ -33,6 +33,7 @@ func SetupAdminRoutes(router *gin.Engine) {
 		managerRoutes.POST("/users", adminHandler.CreateUser)
 		managerRoutes.GET("/users", adminHandler.GetAllUsers)
 		managerRoutes.GET("/users/:id", adminHandler.GetUserByID)
+		managerRoutes.PUT("/users/:id", adminHandler.UpdateUser)
 		managerRoutes.GET("/users/role/:role", adminHandler.GetUsersByRole)
 		managerRoutes.PUT("/users/:id/role", adminHandler.AssignUserRole)
 		managerRoutes.PUT("/users/:id/status", adminHandler.ToggleUserStatus)

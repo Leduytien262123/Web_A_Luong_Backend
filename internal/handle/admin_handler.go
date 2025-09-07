@@ -30,14 +30,7 @@ func (h *AdminHandler) GetAllUsers(c *gin.Context) {
 
 	var response []model.UserResponse
 	for _, user := range users {
-		response = append(response, model.UserResponse{
-			ID:       user.ID,
-			Username: user.Username,
-			Email:    user.Email,
-			FullName: user.FullName,
-			Role:     user.Role,
-			IsActive: user.IsActive,
-		})
+		response = append(response, user.ToResponse())
 	}
 
 	helpers.SuccessResponse(c, consts.MSG_SUCCESS, response)
@@ -61,16 +54,7 @@ func (h *AdminHandler) GetUserByID(c *gin.Context) {
 		return
 	}
 
-	response := model.UserResponse{
-		ID:       user.ID,
-		Username: user.Username,
-		Email:    user.Email,
-		FullName: user.FullName,
-		Role:     user.Role,
-		IsActive: user.IsActive,
-	}
-
-	helpers.SuccessResponse(c, consts.MSG_SUCCESS, response)
+	helpers.SuccessResponse(c, consts.MSG_SUCCESS, user.ToResponse())
 }
 
 func (h *AdminHandler) UpdateUserRole(c *gin.Context) {
@@ -112,16 +96,7 @@ func (h *AdminHandler) UpdateUserRole(c *gin.Context) {
 		return
 	}
 
-	response := model.UserResponse{
-		ID:       user.ID,
-		Username: user.Username,
-		Email:    user.Email,
-		FullName: user.FullName,
-		Role:     user.Role,
-		IsActive: user.IsActive,
-	}
-
-	helpers.SuccessResponse(c, consts.MSG_SUCCESS, response)
+	helpers.SuccessResponse(c, consts.MSG_SUCCESS, user.ToResponse())
 }
 
 func (h *AdminHandler) ToggleUserStatus(c *gin.Context) {
@@ -148,16 +123,7 @@ func (h *AdminHandler) ToggleUserStatus(c *gin.Context) {
 		return
 	}
 
-	response := model.UserResponse{
-		ID:       user.ID,
-		Username: user.Username,
-		Email:    user.Email,
-		FullName: user.FullName,
-		Role:     user.Role,
-		IsActive: user.IsActive,
-	}
-
-	helpers.SuccessResponse(c, consts.MSG_SUCCESS, response)
+	helpers.SuccessResponse(c, consts.MSG_SUCCESS, user.ToResponse())
 }
 
 func (h *AdminHandler) DeleteUser(c *gin.Context) {
@@ -251,6 +217,7 @@ func (h *AdminHandler) CreateUser(c *gin.Context) {
 		Email:    input.Email,
 		Password: string(hashedPassword),
 		FullName: input.FullName,
+		Avatar:   input.Avatar,
 		Role:     input.Role,
 		IsActive: true,
 	}
@@ -432,4 +399,55 @@ func (h *AdminHandler) GetUserStats(c *gin.Context) {
 		Message: "Lấy thống kê người dùng thành công",
 		Data:    stats,
 	})
+}
+
+// UpdateUser cập nhật thông tin user theo ID (dành cho admin)
+func (h *AdminHandler) UpdateUser(c *gin.Context) {
+	userID := c.Param("id")
+	
+	var input model.UpdateUserInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		helpers.ValidationErrorResponse(c, consts.MSG_VALIDATION_ERROR)
+		return
+	}
+
+	// Convert string ID to uint
+	id, err := strconv.ParseUint(userID, 10, 32)
+	if err != nil {
+		helpers.ErrorResponse(c, http.StatusBadRequest, "ID người dùng không hợp lệ", err)
+		return
+	}
+
+	user, err := h.userRepo.GetUserByID(uint(id))
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			helpers.ErrorResponse(c, http.StatusNotFound, consts.MSG_USER_NOT_FOUND, nil)
+			return
+		}
+		helpers.ErrorResponse(c, http.StatusInternalServerError, consts.MSG_INTERNAL_ERROR, err)
+		return
+	}
+
+	// Cập nhật các trường
+	if input.FullName != "" {
+		user.FullName = input.FullName
+	}
+	if input.Email != "" && input.Email != user.Email {
+		// Kiểm tra xem email đã tồn tại chưa
+		if h.userRepo.IsEmailExists(input.Email) {
+			helpers.ErrorResponse(c, http.StatusBadRequest, consts.MSG_EMAIL_EXISTS, nil)
+			return
+		}
+		user.Email = input.Email
+	}
+	if input.Avatar != "" {
+		user.Avatar = input.Avatar
+	}
+
+	if err := h.userRepo.UpdateUser(user); err != nil {
+		helpers.ErrorResponse(c, http.StatusInternalServerError, consts.MSG_INTERNAL_ERROR, err)
+		return
+	}
+
+	helpers.SuccessResponse(c, "Cập nhật thông tin người dùng thành công", user.ToResponse())
 }

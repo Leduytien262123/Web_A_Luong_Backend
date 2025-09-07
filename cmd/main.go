@@ -26,9 +26,17 @@ func main() {
 	}
 
 	// Initialize Gin router
-	r := gin.Default()
+	r := gin.New()
 
-	// Add CORS middleware
+	// Add basic middleware
+	r.Use(gin.Logger())
+	r.Use(gin.Recovery())
+
+	// DISABLE auto redirect trailing slash
+	r.RedirectTrailingSlash = false
+	r.RedirectFixedPath = false
+
+	// Add CORS middleware FIRST - before any other middleware
 	r.Use(utils.CORSMiddleware())
 
 	// Setup routes
