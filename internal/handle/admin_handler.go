@@ -9,6 +9,7 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 )
@@ -38,13 +39,13 @@ func (h *AdminHandler) GetAllUsers(c *gin.Context) {
 
 func (h *AdminHandler) GetUserByID(c *gin.Context) {
 	idParam := c.Param("id")
-	id, err := strconv.ParseUint(idParam, 10, 32)
+	userID, err := uuid.Parse(idParam)
 	if err != nil {
 		helpers.ValidationErrorResponse(c, "ID người dùng không hợp lệ")
 		return
 	}
 
-	user, err := h.userRepo.GetUserByID(uint(id))
+	user, err := h.userRepo.GetUserByID(userID)
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			helpers.ErrorResponse(c, http.StatusNotFound, consts.MSG_USER_NOT_FOUND, nil)
@@ -59,7 +60,7 @@ func (h *AdminHandler) GetUserByID(c *gin.Context) {
 
 func (h *AdminHandler) UpdateUserRole(c *gin.Context) {
 	idParam := c.Param("id")
-	id, err := strconv.ParseUint(idParam, 10, 32)
+	userID, err := uuid.Parse(idParam)
 	if err != nil {
 		helpers.ValidationErrorResponse(c, "ID người dùng không hợp lệ")
 		return
@@ -80,7 +81,7 @@ func (h *AdminHandler) UpdateUserRole(c *gin.Context) {
 		return
 	}
 
-	user, err := h.userRepo.GetUserByID(uint(id))
+	user, err := h.userRepo.GetUserByID(userID)
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			helpers.ErrorResponse(c, http.StatusNotFound, consts.MSG_USER_NOT_FOUND, nil)
@@ -101,13 +102,13 @@ func (h *AdminHandler) UpdateUserRole(c *gin.Context) {
 
 func (h *AdminHandler) ToggleUserStatus(c *gin.Context) {
 	idParam := c.Param("id")
-	id, err := strconv.ParseUint(idParam, 10, 32)
+	userID, err := uuid.Parse(idParam)
 	if err != nil {
 		helpers.ValidationErrorResponse(c, "ID người dùng không hợp lệ")
 		return
 	}
 
-	user, err := h.userRepo.GetUserByID(uint(id))
+	user, err := h.userRepo.GetUserByID(userID)
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			helpers.ErrorResponse(c, http.StatusNotFound, consts.MSG_USER_NOT_FOUND, nil)
@@ -128,14 +129,14 @@ func (h *AdminHandler) ToggleUserStatus(c *gin.Context) {
 
 func (h *AdminHandler) DeleteUser(c *gin.Context) {
 	idParam := c.Param("id")
-	id, err := strconv.ParseUint(idParam, 10, 32)
+	userID, err := uuid.Parse(idParam)
 	if err != nil {
 		helpers.ValidationErrorResponse(c, "ID người dùng không hợp lệ")
 		return
 	}
 
 	// Kiểm tra xem người dùng có tồn tại không
-	_, err = h.userRepo.GetUserByID(uint(id))
+	_, err = h.userRepo.GetUserByID(userID)
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			helpers.ErrorResponse(c, http.StatusNotFound, consts.MSG_USER_NOT_FOUND, nil)
@@ -145,7 +146,7 @@ func (h *AdminHandler) DeleteUser(c *gin.Context) {
 		return
 	}
 
-	if err := h.userRepo.DeleteUser(uint(id)); err != nil {
+	if err := h.userRepo.DeleteUser(userID); err != nil {
 		helpers.ErrorResponse(c, http.StatusInternalServerError, consts.MSG_INTERNAL_ERROR, err)
 		return
 	}
@@ -311,7 +312,7 @@ func (h *AdminHandler) AssignUserRole(c *gin.Context) {
 	}
 
 	targetUserIDStr := c.Param("id")
-	targetUserID, err := strconv.ParseUint(targetUserIDStr, 10, 32)
+	targetUserID, err := uuid.Parse(targetUserIDStr)
 	if err != nil {
 		helpers.ErrorResponse(c, http.StatusBadRequest, "ID người dùng không hợp lệ", err)
 		return
@@ -324,7 +325,7 @@ func (h *AdminHandler) AssignUserRole(c *gin.Context) {
 	}
 
 	// Kiểm tra xem người dùng có thể quản lý người dùng đích không
-	canManage, err := h.userRepo.CheckUserCanManage(currentUserID.(uint), uint(targetUserID))
+	canManage, err := h.userRepo.CheckUserCanManage(currentUserID.(uuid.UUID), targetUserID)
 	if err != nil {
 		helpers.ErrorResponse(c, http.StatusInternalServerError, "Lỗi cơ sở dữ liệu", err)
 		return
@@ -355,13 +356,13 @@ func (h *AdminHandler) AssignUserRole(c *gin.Context) {
 	}
 
 	// Cập nhật vai trò người dùng
-	if err := h.userRepo.UpdateUserRole(uint(targetUserID), input.Role); err != nil {
+	if err := h.userRepo.UpdateUserRole(targetUserID, input.Role); err != nil {
 		helpers.ErrorResponse(c, http.StatusInternalServerError, "Không thể cập nhật vai trò người dùng", err)
 		return
 	}
 
 	// Lấy thông tin người dùng đã cập nhật
-	updatedUser, err := h.userRepo.GetUserByID(uint(targetUserID))
+	updatedUser, err := h.userRepo.GetUserByID(targetUserID)
 	if err != nil {
 		helpers.ErrorResponse(c, http.StatusInternalServerError, "Không thể lấy thông tin người dùng đã cập nhật", err)
 		return
@@ -403,7 +404,12 @@ func (h *AdminHandler) GetUserStats(c *gin.Context) {
 
 // UpdateUser cập nhật thông tin user theo ID (dành cho admin)
 func (h *AdminHandler) UpdateUser(c *gin.Context) {
-	userID := c.Param("id")
+	userIDStr := c.Param("id")
+	userID, err := uuid.Parse(userIDStr)
+	if err != nil {
+		helpers.ErrorResponse(c, http.StatusBadRequest, "ID người dùng không hợp lệ", err)
+		return
+	}
 	
 	var input model.UpdateUserInput
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -411,14 +417,7 @@ func (h *AdminHandler) UpdateUser(c *gin.Context) {
 		return
 	}
 
-	// Convert string ID to uint
-	id, err := strconv.ParseUint(userID, 10, 32)
-	if err != nil {
-		helpers.ErrorResponse(c, http.StatusBadRequest, "ID người dùng không hợp lệ", err)
-		return
-	}
-
-	user, err := h.userRepo.GetUserByID(uint(id))
+	user, err := h.userRepo.GetUserByID(userID)
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			helpers.ErrorResponse(c, http.StatusNotFound, consts.MSG_USER_NOT_FOUND, nil)

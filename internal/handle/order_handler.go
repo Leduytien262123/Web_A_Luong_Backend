@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 type OrderHandler struct {
@@ -39,7 +40,7 @@ func (h *OrderHandler) CreateOrder(c *gin.Context) {
 	userID, exists := c.Get("user_id")
 	if exists && userID != nil {
 		// Nếu người dùng đã đăng nhập, sử dụng ID của họ
-		userIDValue := userID.(uint)
+		userIDValue := userID.(uuid.UUID)
 		input.UserID = &userIDValue
 	}
 	// Nếu người dùng chưa đăng nhập, input.UserID sẽ là nil (đơn hàng khách)
@@ -204,7 +205,7 @@ func (h *OrderHandler) GetMyOrders(c *gin.Context) {
 		limit = 10
 	}
 
-	orders, total, err := h.orderRepo.GetByUserID(userID.(uint), page, limit)
+	orders, total, err := h.orderRepo.GetByUserID(userID.(uuid.UUID), page, limit)
 	if err != nil {
 		helpers.ErrorResponse(c, http.StatusInternalServerError, "Không thể lấy danh sách đơn hàng", err)
 		return
@@ -235,13 +236,13 @@ func (h *OrderHandler) GetMyOrders(c *gin.Context) {
 // GetOrderByID lấy đơn hàng theo ID
 func (h *OrderHandler) GetOrderByID(c *gin.Context) {
 	idStr := c.Param("id")
-	id, err := strconv.ParseUint(idStr, 10, 32)
+	id, err := uuid.Parse(idStr)
 	if err != nil {
 		helpers.ErrorResponse(c, http.StatusBadRequest, "ID đơn hàng không hợp lệ", err)
 		return
 	}
 
-	order, err := h.orderRepo.GetByID(uint(id))
+	order, err := h.orderRepo.GetByID(id)
 	if err != nil {
 		if err.Error() == "order not found" {
 			helpers.ErrorResponse(c, http.StatusNotFound, "Không tìm thấy đơn hàng", err)
@@ -261,7 +262,7 @@ func (h *OrderHandler) GetOrderByID(c *gin.Context) {
 // UpdateOrderStatus cập nhật trạng thái đơn hàng
 func (h *OrderHandler) UpdateOrderStatus(c *gin.Context) {
 	idStr := c.Param("id")
-	id, err := strconv.ParseUint(idStr, 10, 32)
+	id, err := uuid.Parse(idStr)
 	if err != nil {
 		helpers.ErrorResponse(c, http.StatusBadRequest, "ID đơn hàng không hợp lệ", err)
 		return
@@ -275,7 +276,7 @@ func (h *OrderHandler) UpdateOrderStatus(c *gin.Context) {
 		return
 	}
 
-	if err := h.orderRepo.UpdateStatus(uint(id), input.Status); err != nil {
+	if err := h.orderRepo.UpdateStatus(id, input.Status); err != nil {
 		helpers.ErrorResponse(c, http.StatusInternalServerError, "Không thể cập nhật trạng thái đơn hàng", err)
 		return
 	}
@@ -290,7 +291,7 @@ func (h *OrderHandler) UpdateOrderStatus(c *gin.Context) {
 // UpdatePaymentStatus cập nhật trạng thái thanh toán
 func (h *OrderHandler) UpdatePaymentStatus(c *gin.Context) {
 	idStr := c.Param("id")
-	id, err := strconv.ParseUint(idStr, 10, 32)
+	id, err := uuid.Parse(idStr)
 	if err != nil {
 		helpers.ErrorResponse(c, http.StatusBadRequest, "ID đơn hàng không hợp lệ", err)
 		return
@@ -304,7 +305,7 @@ func (h *OrderHandler) UpdatePaymentStatus(c *gin.Context) {
 		return
 	}
 
-	if err := h.orderRepo.UpdatePaymentStatus(uint(id), input.PaymentStatus); err != nil {
+	if err := h.orderRepo.UpdatePaymentStatus(id, input.PaymentStatus); err != nil {
 		helpers.ErrorResponse(c, http.StatusInternalServerError, "Không thể cập nhật trạng thái thanh toán", err)
 		return
 	}

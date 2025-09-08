@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -21,9 +22,9 @@ func CheckPasswordHash(password, hash string) bool {
 }
 
 // GenerateJWT generates a JWT token
-func GenerateJWT(userID uint, username string, role string) (string, error) {
+func GenerateJWT(userID uuid.UUID, username string, role string) (string, error) {
 	claims := jwt.MapClaims{
-		"user_id":  userID,
+		"user_id":  userID.String(),
 		"username": username,
 		"role":     role,
 		"exp":      time.Now().Add(time.Hour * consts.JWT_EXPIRE_HOURS).Unix(),

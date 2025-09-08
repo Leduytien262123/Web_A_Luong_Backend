@@ -3,13 +3,14 @@ package model
 import (
 	"time"
 
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
 type Review struct {
-	ID        uint           `json:"id" gorm:"primaryKey;autoIncrement"`
-	ProductID uint           `json:"product_id" gorm:"not null;index"`
-	UserID    uint           `json:"user_id" gorm:"not null;index"`
+	ID        uuid.UUID      `json:"id" gorm:"type:char(36);primary_key"`
+	ProductID uuid.UUID      `json:"product_id" gorm:"type:char(36);not null;index"`
+	UserID    uuid.UUID      `json:"user_id" gorm:"type:char(36);not null;index"`
 	Rating    int            `json:"rating" gorm:"not null;check:rating >= 1 AND rating <= 5"`
 	Title     string         `json:"title" gorm:"size:200"`
 	Comment   string         `json:"comment" gorm:"type:text"`
@@ -23,8 +24,16 @@ type Review struct {
 	User    *User    `json:"user,omitempty" gorm:"foreignKey:UserID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
 }
 
+// BeforeCreate hook để tự động tạo UUID cho Review
+func (r *Review) BeforeCreate(tx *gorm.DB) (err error) {
+	if r.ID == uuid.Nil {
+		r.ID = uuid.New()
+	}
+	return
+}
+
 type Coupon struct {
-	ID               uint           `json:"id" gorm:"primaryKey;autoIncrement"`
+	ID               uuid.UUID      `json:"id" gorm:"type:char(36);primary_key"`
 	Code             string         `json:"code" gorm:"unique;not null;size:50;index"`
 	Name             string         `json:"name" gorm:"not null;size:200"`
 	Description      string         `json:"description" gorm:"size:500"`
@@ -42,9 +51,17 @@ type Coupon struct {
 	DeletedAt        gorm.DeletedAt `json:"-" gorm:"index"`
 }
 
+// BeforeCreate hook để tự động tạo UUID cho Coupon
+func (c *Coupon) BeforeCreate(tx *gorm.DB) (err error) {
+	if c.ID == uuid.Nil {
+		c.ID = uuid.New()
+	}
+	return
+}
+
 type Address struct {
-	ID           uint           `json:"id" gorm:"primaryKey;autoIncrement"`
-	UserID       uint           `json:"user_id" gorm:"not null;index"`
+	ID           uuid.UUID      `json:"id" gorm:"type:char(36);primary_key"`
+	UserID       uuid.UUID      `json:"user_id" gorm:"type:char(36);not null;index"`
 	Name         string         `json:"name" gorm:"not null;size:100"`
 	Phone        string         `json:"phone" gorm:"not null;size:20"`
 	AddressLine1 string         `json:"address_line1" gorm:"not null;size:200"`
@@ -62,8 +79,16 @@ type Address struct {
 	User *User `json:"user,omitempty" gorm:"foreignKey:UserID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
 }
 
+// BeforeCreate hook để tự động tạo UUID cho Address
+func (a *Address) BeforeCreate(tx *gorm.DB) (err error) {
+	if a.ID == uuid.Nil {
+		a.ID = uuid.New()
+	}
+	return
+}
+
 type Brand struct {
-	ID          uint           `json:"id" gorm:"primaryKey;autoIncrement"`
+	ID          uuid.UUID      `json:"id" gorm:"type:char(36);primary_key"`
 	Name        string         `json:"name" gorm:"not null;size:100;index"`
 	Slug        string         `json:"slug" gorm:"unique;not null;size:100;index"`
 	Description string         `json:"description" gorm:"size:500"`
@@ -78,9 +103,17 @@ type Brand struct {
 	Products []Product `json:"products,omitempty" gorm:"foreignKey:BrandID;constraint:OnUpdate:CASCADE,OnDelete:SET NULL"`
 }
 
+// BeforeCreate hook để tự động tạo UUID cho Brand
+func (b *Brand) BeforeCreate(tx *gorm.DB) (err error) {
+	if b.ID == uuid.Nil {
+		b.ID = uuid.New()
+	}
+	return
+}
+
 type ProductImage struct {
-	ID        uint           `json:"id" gorm:"primaryKey;autoIncrement"`
-	ProductID uint           `json:"product_id" gorm:"not null;index"`
+	ID        uuid.UUID      `json:"id" gorm:"type:char(36);primary_key"`
+	ProductID uuid.UUID      `json:"product_id" gorm:"type:char(36);not null;index"`
 	ImageURL  string         `json:"image_url" gorm:"not null;size:500"`
 	AltText   string         `json:"alt_text" gorm:"size:200"`
 	IsPrimary bool           `json:"is_primary" gorm:"default:false;index"`
@@ -93,6 +126,14 @@ type ProductImage struct {
 	Product *Product `json:"product,omitempty" gorm:"foreignKey:ProductID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
 }
 
+// BeforeCreate hook để tự động tạo UUID cho ProductImage
+func (pi *ProductImage) BeforeCreate(tx *gorm.DB) (err error) {
+	if pi.ID == uuid.Nil {
+		pi.ID = uuid.New()
+	}
+	return
+}
+
 // TableName specifies the table names
 func (Review) TableName() string { return "reviews" }
 func (Coupon) TableName() string { return "coupons" }
@@ -102,10 +143,10 @@ func (ProductImage) TableName() string { return "product_images" }
 
 // Input structs
 type ReviewInput struct {
-	ProductID uint   `json:"product_id" binding:"required"`
-	Rating    int    `json:"rating" binding:"required,min=1,max=5"`
-	Title     string `json:"title" binding:"max=200"`
-	Comment   string `json:"comment" binding:"max=1000"`
+	ProductID uuid.UUID `json:"product_id" binding:"required"`
+	Rating    int       `json:"rating" binding:"required,min=1,max=5"`
+	Title     string    `json:"title" binding:"max=200"`
+	Comment   string    `json:"comment" binding:"max=1000"`
 }
 
 type CouponInput struct {
@@ -142,18 +183,18 @@ type BrandInput struct {
 }
 
 type ProductImageInput struct {
-	ProductID uint   `json:"product_id" binding:"required"`
-	ImageURL  string `json:"image_url" binding:"required,max=500"`
-	AltText   string `json:"alt_text" binding:"max=200"`
-	IsPrimary bool   `json:"is_primary"`
-	SortOrder int    `json:"sort_order"`
+	ProductID uuid.UUID `json:"product_id" binding:"required"`
+	ImageURL  string    `json:"image_url" binding:"required,max=500"`
+	AltText   string    `json:"alt_text" binding:"max=200"`
+	IsPrimary bool      `json:"is_primary"`
+	SortOrder int       `json:"sort_order"`
 }
 
 // Response structs
 type ReviewResponse struct {
-	ID        uint          `json:"id"`
-	ProductID uint          `json:"product_id"`
-	UserID    uint          `json:"user_id"`
+	ID        uuid.UUID     `json:"id"`
+	ProductID uuid.UUID     `json:"product_id"`
+	UserID    uuid.UUID     `json:"user_id"`
 	User      *UserResponse `json:"user,omitempty"`
 	Rating    int           `json:"rating"`
 	Title     string        `json:"title"`
@@ -164,7 +205,7 @@ type ReviewResponse struct {
 }
 
 type CouponResponse struct {
-	ID               uint      `json:"id"`
+	ID               uuid.UUID `json:"id"`
 	Code             string    `json:"code"`
 	Name             string    `json:"name"`
 	Description      string    `json:"description"`
@@ -182,8 +223,8 @@ type CouponResponse struct {
 }
 
 type AddressResponse struct {
-	ID           uint      `json:"id"`
-	UserID       uint      `json:"user_id"`
+	ID           uuid.UUID `json:"id"`
+	UserID       uuid.UUID `json:"user_id"`
 	Name         string    `json:"name"`
 	Phone        string    `json:"phone"`
 	AddressLine1 string    `json:"address_line1"`
@@ -198,7 +239,7 @@ type AddressResponse struct {
 }
 
 type BrandResponse struct {
-	ID          uint      `json:"id"`
+	ID          uuid.UUID `json:"id"`
 	Name        string    `json:"name"`
 	Slug        string    `json:"slug"`
 	Description string    `json:"description"`
@@ -210,8 +251,8 @@ type BrandResponse struct {
 }
 
 type ProductImageResponse struct {
-	ID        uint      `json:"id"`
-	ProductID uint      `json:"product_id"`
+	ID        uuid.UUID `json:"id"`
+	ProductID uuid.UUID `json:"product_id"`
 	ImageURL  string    `json:"image_url"`
 	AltText   string    `json:"alt_text"`
 	IsPrimary bool      `json:"is_primary"`

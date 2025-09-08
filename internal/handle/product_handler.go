@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 type ProductHandler struct {
@@ -36,7 +37,7 @@ func (h *ProductHandler) CreateProduct(c *gin.Context) {
 	input.SKU = strings.ToUpper(strings.TrimSpace(input.SKU))
 
 	// Kiểm tra xem SKU đã tồn tại chưa
-	exists, err := h.productRepo.CheckSKUExists(input.SKU, 0)
+	exists, err := h.productRepo.CheckSKUExists(input.SKU, uuid.Nil)
 	if err != nil {
 		helpers.ErrorResponse(c, http.StatusInternalServerError, "Lỗi cơ sở dữ liệu", err)
 		return
@@ -105,14 +106,14 @@ func (h *ProductHandler) GetProducts(c *gin.Context) {
 	var total int64
 
 	if categoryIDStr != "" {
-		 // Lấy sản phẩm theo danh mục
-		categoryID, err := strconv.ParseUint(categoryIDStr, 10, 32)
+		// Lấy sản phẩm theo danh mục
+		categoryID, err := uuid.Parse(categoryIDStr)
 		if err != nil {
-			helpers.ErrorResponse(c, http.StatusBadRequest, "ID danh mục không hợp lệ", errors.New("ID danh mục phải là số hợp lệ"))
+			helpers.ErrorResponse(c, http.StatusBadRequest, "ID danh mục không hợp lệ", errors.New("ID danh mục phải là UUID hợp lệ"))
 			return
 		}
 
-		products, total, err = h.productRepo.GetByCategoryID(uint(categoryID), page, limit)
+		products, total, err = h.productRepo.GetByCategoryID(categoryID, page, limit)
 		if err != nil {
 			helpers.ErrorResponse(c, http.StatusInternalServerError, "Không thể lấy danh sách sản phẩm", err)
 			return
@@ -152,13 +153,13 @@ func (h *ProductHandler) GetProducts(c *gin.Context) {
 // GetProductByID lấy sản phẩm theo ID
 func (h *ProductHandler) GetProductByID(c *gin.Context) {
 	idStr := c.Param("id")
-	id, err := strconv.ParseUint(idStr, 10, 32)
+	id, err := uuid.Parse(idStr)
 	if err != nil {
-		helpers.ErrorResponse(c, http.StatusBadRequest, "ID sản phẩm không hợp lệ", errors.New("ID sản phẩm phải là số hợp lệ"))
+		helpers.ErrorResponse(c, http.StatusBadRequest, "ID sản phẩm không hợp lệ", errors.New("ID sản phẩm phải là UUID hợp lệ"))
 		return
 	}
 
-	product, err := h.productRepo.GetByID(uint(id))
+	product, err := h.productRepo.GetByID(id)
 	if err != nil {
 		if err.Error() == "product not found" {
 			helpers.ErrorResponse(c, http.StatusNotFound, "Không tìm thấy sản phẩm", err)
@@ -203,9 +204,9 @@ func (h *ProductHandler) GetProductBySKU(c *gin.Context) {
 // UpdateProduct cập nhật sản phẩm
 func (h *ProductHandler) UpdateProduct(c *gin.Context) {
 	idStr := c.Param("id")
-	id, err := strconv.ParseUint(idStr, 10, 32)
+	id, err := uuid.Parse(idStr)
 	if err != nil {
-		helpers.ErrorResponse(c, http.StatusBadRequest, "ID sản phẩm không hợp lệ", errors.New("ID sản phẩm phải là số hợp lệ"))
+		helpers.ErrorResponse(c, http.StatusBadRequest, "ID sản phẩm không hợp lệ", errors.New("ID sản phẩm phải là UUID hợp lệ"))
 		return
 	}
 
@@ -216,7 +217,7 @@ func (h *ProductHandler) UpdateProduct(c *gin.Context) {
 	}
 
 	// Lấy sản phẩm hiện tại
-	product, err := h.productRepo.GetByID(uint(id))
+	product, err := h.productRepo.GetByID(id)
 	if err != nil {
 		if err.Error() == "product not found" {
 			helpers.ErrorResponse(c, http.StatusNotFound, "Không tìm thấy sản phẩm", err)
@@ -230,7 +231,7 @@ func (h *ProductHandler) UpdateProduct(c *gin.Context) {
 	input.SKU = strings.ToUpper(strings.TrimSpace(input.SKU))
 
 	// Kiểm tra xem SKU đã tồn tại chưa (loại trừ sản phẩm hiện tại)
-	exists, err := h.productRepo.CheckSKUExists(input.SKU, uint(id))
+	exists, err := h.productRepo.CheckSKUExists(input.SKU, id)
 	if err != nil {
 		helpers.ErrorResponse(c, http.StatusInternalServerError, "Lỗi cơ sở dữ liệu", err)
 		return
@@ -279,14 +280,14 @@ func (h *ProductHandler) UpdateProduct(c *gin.Context) {
 // DeleteProduct xóa sản phẩm
 func (h *ProductHandler) DeleteProduct(c *gin.Context) {
 	idStr := c.Param("id")
-	id, err := strconv.ParseUint(idStr, 10, 32)
+	id, err := uuid.Parse(idStr)
 	if err != nil {
-		helpers.ErrorResponse(c, http.StatusBadRequest, "ID sản phẩm không hợp lệ", errors.New("ID sản phẩm phải là số hợp lệ"))
+		helpers.ErrorResponse(c, http.StatusBadRequest, "ID sản phẩm không hợp lệ", errors.New("ID sản phẩm phải là UUID hợp lệ"))
 		return
 	}
 
 	// Kiểm tra xem sản phẩm có tồn tại không
-	_, err = h.productRepo.GetByID(uint(id))
+	_, err = h.productRepo.GetByID(id)
 	if err != nil {
 		if err.Error() == "product not found" {
 			helpers.ErrorResponse(c, http.StatusNotFound, "Không tìm thấy sản phẩm", err)
@@ -296,7 +297,7 @@ func (h *ProductHandler) DeleteProduct(c *gin.Context) {
 		return
 	}
 
-	if err := h.productRepo.Delete(uint(id)); err != nil {
+	if err := h.productRepo.Delete(id); err != nil {
 		helpers.ErrorResponse(c, http.StatusInternalServerError, "Không thể xóa sản phẩm", err)
 		return
 	}
@@ -311,9 +312,9 @@ func (h *ProductHandler) DeleteProduct(c *gin.Context) {
 // UpdateProductStock cập nhật số lượng tồn kho sản phẩm
 func (h *ProductHandler) UpdateProductStock(c *gin.Context) {
 	idStr := c.Param("id")
-	id, err := strconv.ParseUint(idStr, 10, 32)
+	id, err := uuid.Parse(idStr)
 	if err != nil {
-		helpers.ErrorResponse(c, http.StatusBadRequest, "ID sản phẩm không hợp lệ", errors.New("ID sản phẩm phải là số hợp lệ"))
+		helpers.ErrorResponse(c, http.StatusBadRequest, "ID sản phẩm không hợp lệ", errors.New("ID sản phẩm phải là UUID hợp lệ"))
 		return
 	}
 
@@ -326,7 +327,7 @@ func (h *ProductHandler) UpdateProductStock(c *gin.Context) {
 	}
 
 	// Kiểm tra xem sản phẩm có tồn tại không
-	product, err := h.productRepo.GetByID(uint(id))
+	product, err := h.productRepo.GetByID(id)
 	if err != nil {
 		if err.Error() == "product not found" {
 			helpers.ErrorResponse(c, http.StatusNotFound, "Không tìm thấy sản phẩm", err)
@@ -336,7 +337,7 @@ func (h *ProductHandler) UpdateProductStock(c *gin.Context) {
 		return
 	}
 
-	if err := h.productRepo.UpdateStock(uint(id), input.Stock); err != nil {
+	if err := h.productRepo.UpdateStock(id, input.Stock); err != nil {
 		helpers.ErrorResponse(c, http.StatusInternalServerError, "Không thể cập nhật số lượng tồn kho", err)
 		return
 	}

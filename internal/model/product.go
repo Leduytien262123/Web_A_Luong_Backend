@@ -3,18 +3,19 @@ package model
 import (
 	"time"
 
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
 type Product struct {
-	ID          uint           `json:"id" gorm:"primaryKey;autoIncrement"`
-	Name        string         `json:"name" gorm:"not null;size:200;index"`
-	Description string         `json:"description" gorm:"type:text"`
-	Price       float64        `json:"price" gorm:"not null;type:decimal(10,2)"`
-	SKU         string         `json:"sku" gorm:"unique;not null;size:50;index"`
-	Stock       int            `json:"stock" gorm:"not null;default:0"`
-	CategoryID  *uint          `json:"category_id" gorm:"index"`
-	BrandID     *uint          `json:"brand_id" gorm:"index"`
+	ID          uuid.UUID      `json:"id" gorm:"type:char(36);primary_key"`
+	Name        string         `json:"name" gorm:"not null;size:255;index"`
+	Description string         `json:"description" gorm:"type:longtext"`
+	Price       float64        `json:"price" gorm:"not null;type:decimal(10,2);index"`
+	SKU         string         `json:"sku" gorm:"unique;not null;size:100;index"`
+	Stock       int            `json:"stock" gorm:"not null;default:0;index"`
+	CategoryID  *uuid.UUID     `json:"category_id" gorm:"type:char(36);index"`
+	BrandID     *uuid.UUID     `json:"brand_id" gorm:"type:char(36);index"`
 	Material    string         `json:"material" gorm:"size:100"`
 	Color       string         `json:"color" gorm:"size:50"`
 	Size        string         `json:"size" gorm:"size:50"`
@@ -38,32 +39,40 @@ func (Product) TableName() string {
 	return "products"
 }
 
+// BeforeCreate hook để tự động tạo UUID cho Product
+func (p *Product) BeforeCreate(tx *gorm.DB) (err error) {
+	if p.ID == uuid.Nil {
+		p.ID = uuid.New()
+	}
+	return
+}
+
 type ProductInput struct {
-	Name        string  `json:"name" binding:"required,min=1,max=200"`
-	Description string  `json:"description" binding:"max=1000"`
-	Price       float64 `json:"price" binding:"required,gt=0"`
-	SKU         string  `json:"sku" binding:"required,min=1,max=50"`
-	Stock       int     `json:"stock" binding:"gte=0"`
-	CategoryID  *uint   `json:"category_id"`
-	BrandID     *uint   `json:"brand_id"`
-	Material    string  `json:"material" binding:"max=100"`
-	Color       string  `json:"color" binding:"max=50"`
-	Size        string  `json:"size" binding:"max=50"`
-	Weight      float64 `json:"weight" binding:"gte=0"`
-	Dimensions  string  `json:"dimensions" binding:"max=100"`
-	IsFeatured  bool    `json:"is_featured"`
+	Name        string     `json:"name" binding:"required,min=1,max=200"`
+	Description string     `json:"description" binding:"max=1000"`
+	Price       float64    `json:"price" binding:"required,gt=0"`
+	SKU         string     `json:"sku" binding:"required,min=1,max=50"`
+	Stock       int        `json:"stock" binding:"gte=0"`
+	CategoryID  *uuid.UUID `json:"category_id"`
+	BrandID     *uuid.UUID `json:"brand_id"`
+	Material    string     `json:"material" binding:"max=100"`
+	Color       string     `json:"color" binding:"max=50"`
+	Size        string     `json:"size" binding:"max=50"`
+	Weight      float64    `json:"weight" binding:"gte=0"`
+	Dimensions  string     `json:"dimensions" binding:"max=100"`
+	IsFeatured  bool       `json:"is_featured"`
 }
 
 type ProductResponse struct {
-	ID            uint                   `json:"id"`
+	ID            uuid.UUID              `json:"id"`
 	Name          string                 `json:"name"`
 	Description   string                 `json:"description"`
 	Price         float64                `json:"price"`
 	SKU           string                 `json:"sku"`
 	Stock         int                    `json:"stock"`
-	CategoryID    *uint                  `json:"category_id"`
+	CategoryID    *uuid.UUID             `json:"category_id"`
 	Category      *CategoryResponse      `json:"category,omitempty"`
-	BrandID       *uint                  `json:"brand_id"`
+	BrandID       *uuid.UUID             `json:"brand_id"`
 	Brand         *BrandResponse         `json:"brand,omitempty"`
 	Material      string                 `json:"material"`
 	Color         string                 `json:"color"`

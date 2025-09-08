@@ -8,6 +8,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
@@ -127,7 +128,7 @@ func (h *AuthHandler) GetProfile(c *gin.Context) {
 		return
 	}
 
-	user, err := h.userRepo.GetUserByID(userID.(uint))
+	user, err := h.userRepo.GetUserByID(userID.(uuid.UUID))
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			helpers.ErrorResponse(c, http.StatusNotFound, consts.MSG_USER_NOT_FOUND, nil)
@@ -153,7 +154,7 @@ func (h *AuthHandler) UpdateProfile(c *gin.Context) {
 		return
 	}
 
-	user, err := h.userRepo.GetUserByID(userID.(uint))
+	user, err := h.userRepo.GetUserByID(userID.(uuid.UUID))
 	if err != nil {
 		helpers.ErrorResponse(c, http.StatusInternalServerError, consts.MSG_INTERNAL_ERROR, err)
 		return

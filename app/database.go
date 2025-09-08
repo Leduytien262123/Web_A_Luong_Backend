@@ -84,8 +84,11 @@ func Connect() {
 }
 
 func runMigrations() error {
+	// Tắt foreign key checks tạm thời
+	DB.Exec("SET FOREIGN_KEY_CHECKS = 0")
+	
 	// Tự động migrate tất cả các model
-	return DB.AutoMigrate(
+	err := DB.AutoMigrate(
 		&model.User{},
 		&model.Category{},
 		&model.Brand{},
@@ -100,6 +103,11 @@ func runMigrations() error {
 		&model.Address{},
 		&model.News{},
 	)
+	
+	// Bật lại foreign key checks
+	DB.Exec("SET FOREIGN_KEY_CHECKS = 1")
+	
+	return err
 }
 
 func GetDB() *gorm.DB {

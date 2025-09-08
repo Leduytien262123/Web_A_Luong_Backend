@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
@@ -26,12 +27,12 @@ func (r *OrderRepo) Create(order *model.Order) error {
 }
 
 // GetByID lấy đơn hàng theo ID kèm dữ liệu liên quan
-func (r *OrderRepo) GetByID(id uint) (*model.Order, error) {
+func (r *OrderRepo) GetByID(id uuid.UUID) (*model.Order, error) {
 	var order model.Order
 	err := r.db.Preload("User").
 		Preload("OrderItems").
 		Preload("OrderItems.Product").
-		First(&order, id).Error
+		Where("id = ?", id).First(&order).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, errors.New("order not found")
@@ -59,7 +60,7 @@ func (r *OrderRepo) GetByOrderNumber(orderNumber string) (*model.Order, error) {
 }
 
 // GetByUserID lấy danh sách đơn hàng theo userID có phân trang
-func (r *OrderRepo) GetByUserID(userID uint, page, limit int) ([]model.Order, int64, error) {
+func (r *OrderRepo) GetByUserID(userID uuid.UUID, page, limit int) ([]model.Order, int64, error) {
 	var orders []model.Order
 	var total int64
 
@@ -114,7 +115,7 @@ func (r *OrderRepo) Update(order *model.Order) error {
 }
 
 // UpdateStatus cập nhật trạng thái đơn hàng
-func (r *OrderRepo) UpdateStatus(id uint, status string) error {
+func (r *OrderRepo) UpdateStatus(id uuid.UUID, status string) error {
 	updates := map[string]interface{}{
 		"status": status,
 	}
@@ -132,7 +133,7 @@ func (r *OrderRepo) UpdateStatus(id uint, status string) error {
 }
 
 // UpdatePaymentStatus cập nhật trạng thái thanh toán
-func (r *OrderRepo) UpdatePaymentStatus(id uint, paymentStatus string) error {
+func (r *OrderRepo) UpdatePaymentStatus(id uuid.UUID, paymentStatus string) error {
 	return r.db.Model(&model.Order{}).Where("id = ?", id).Update("payment_status", paymentStatus).Error
 }
 

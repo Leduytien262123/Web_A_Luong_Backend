@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 type CartHandler struct {
@@ -29,7 +30,7 @@ func (h *CartHandler) GetCart(c *gin.Context) {
 		return
 	}
 
-	cart, err := h.cartRepo.GetOrCreateCart(userID.(uint))
+	cart, err := h.cartRepo.GetOrCreateCart(userID.(uuid.UUID))
 	if err != nil {
 		helpers.ErrorResponse(c, http.StatusInternalServerError, "Failed to retrieve cart", err)
 		return
@@ -56,13 +57,13 @@ func (h *CartHandler) AddToCart(c *gin.Context) {
 		return
 	}
 
-	if err := h.cartRepo.AddItem(userID.(uint), input.ProductID, input.Quantity); err != nil {
+	if err := h.cartRepo.AddItem(userID.(uuid.UUID), input.ProductID, input.Quantity); err != nil {
 		helpers.ErrorResponse(c, http.StatusInternalServerError, "Failed to add item to cart", err)
 		return
 	}
 
 	// Get updated cart
-	cart, err := h.cartRepo.GetOrCreateCart(userID.(uint))
+	cart, err := h.cartRepo.GetOrCreateCart(userID.(uuid.UUID))
 	if err != nil {
 		helpers.ErrorResponse(c, http.StatusInternalServerError, "Failed to retrieve updated cart", err)
 		return
@@ -84,7 +85,7 @@ func (h *CartHandler) UpdateCartItem(c *gin.Context) {
 	}
 
 	productIDStr := c.Param("product_id")
-	productID, err := strconv.ParseUint(productIDStr, 10, 32)
+	productID, err := uuid.Parse(productIDStr)
 	if err != nil {
 		helpers.ErrorResponse(c, http.StatusBadRequest, "Invalid product ID", err)
 		return
@@ -98,13 +99,13 @@ func (h *CartHandler) UpdateCartItem(c *gin.Context) {
 		return
 	}
 
-	if err := h.cartRepo.UpdateItemQuantity(userID.(uint), uint(productID), input.Quantity); err != nil {
+	if err := h.cartRepo.UpdateItemQuantity(userID.(uuid.UUID), productID, input.Quantity); err != nil {
 		helpers.ErrorResponse(c, http.StatusInternalServerError, "Failed to update cart item", err)
 		return
 	}
 
 	// Get updated cart
-	cart, err := h.cartRepo.GetOrCreateCart(userID.(uint))
+	cart, err := h.cartRepo.GetOrCreateCart(userID.(uuid.UUID))
 	if err != nil {
 		helpers.ErrorResponse(c, http.StatusInternalServerError, "Failed to retrieve updated cart", err)
 		return
@@ -126,19 +127,19 @@ func (h *CartHandler) RemoveFromCart(c *gin.Context) {
 	}
 
 	productIDStr := c.Param("product_id")
-	productID, err := strconv.ParseUint(productIDStr, 10, 32)
+	productID, err := uuid.Parse(productIDStr)
 	if err != nil {
 		helpers.ErrorResponse(c, http.StatusBadRequest, "Invalid product ID", err)
 		return
 	}
 
-	if err := h.cartRepo.RemoveItem(userID.(uint), uint(productID)); err != nil {
+	if err := h.cartRepo.RemoveItem(userID.(uuid.UUID), productID); err != nil {
 		helpers.ErrorResponse(c, http.StatusInternalServerError, "Failed to remove item from cart", err)
 		return
 	}
 
 	// Get updated cart
-	cart, err := h.cartRepo.GetOrCreateCart(userID.(uint))
+	cart, err := h.cartRepo.GetOrCreateCart(userID.(uuid.UUID))
 	if err != nil {
 		helpers.ErrorResponse(c, http.StatusInternalServerError, "Failed to retrieve updated cart", err)
 		return
@@ -159,7 +160,7 @@ func (h *CartHandler) ClearCart(c *gin.Context) {
 		return
 	}
 
-	if err := h.cartRepo.ClearCart(userID.(uint)); err != nil {
+	if err := h.cartRepo.ClearCart(userID.(uuid.UUID)); err != nil {
 		helpers.ErrorResponse(c, http.StatusInternalServerError, "Failed to clear cart", err)
 		return
 	}
@@ -196,7 +197,7 @@ func (h *NewsHandler) CreateNews(c *gin.Context) {
 	}
 
 	// Check if slug already exists
-	exists, err := h.newsRepo.CheckSlugExists(input.Slug, 0)
+	exists, err := h.newsRepo.CheckSlugExists(input.Slug, uuid.Nil)
 	if err != nil {
 		helpers.ErrorResponse(c, http.StatusInternalServerError, "Database error", err)
 		return
@@ -212,7 +213,7 @@ func (h *NewsHandler) CreateNews(c *gin.Context) {
 		Summary:     input.Summary,
 		Content:     input.Content,
 		ImageURL:    input.ImageURL,
-		AuthorID:    userID.(uint),
+		AuthorID:    userID.(uuid.UUID),
 		IsPublished: input.IsPublished,
 		Tags:        input.Tags,
 		MetaTitle:   input.MetaTitle,
@@ -290,13 +291,13 @@ func (h *NewsHandler) GetNews(c *gin.Context) {
 // GetNewsByID retrieves a news article by ID
 func (h *NewsHandler) GetNewsByID(c *gin.Context) {
 	idStr := c.Param("id")
-	id, err := strconv.ParseUint(idStr, 10, 32)
+	id, err := uuid.Parse(idStr)
 	if err != nil {
 		helpers.ErrorResponse(c, http.StatusBadRequest, "Invalid news ID", err)
 		return
 	}
 
-	news, err := h.newsRepo.GetByID(uint(id))
+	news, err := h.newsRepo.GetByID(id)
 	if err != nil {
 		if err.Error() == "news not found" {
 			helpers.ErrorResponse(c, http.StatusNotFound, "News not found", err)
@@ -307,7 +308,7 @@ func (h *NewsHandler) GetNewsByID(c *gin.Context) {
 	}
 
 	// Increment view count
-	h.newsRepo.IncrementViewCount(uint(id))
+	h.newsRepo.IncrementViewCount(id)
 
 	c.JSON(http.StatusOK, helpers.Response{
 		Success: true,
@@ -347,7 +348,7 @@ func (h *NewsHandler) GetNewsBySlug(c *gin.Context) {
 // UpdateNews updates a news article
 func (h *NewsHandler) UpdateNews(c *gin.Context) {
 	idStr := c.Param("id")
-	id, err := strconv.ParseUint(idStr, 10, 32)
+	id, err := uuid.Parse(idStr)
 	if err != nil {
 		helpers.ErrorResponse(c, http.StatusBadRequest, "Invalid news ID", err)
 		return
@@ -360,7 +361,7 @@ func (h *NewsHandler) UpdateNews(c *gin.Context) {
 	}
 
 	// Get existing news
-	news, err := h.newsRepo.GetByID(uint(id))
+	news, err := h.newsRepo.GetByID(id)
 	if err != nil {
 		if err.Error() == "news not found" {
 			helpers.ErrorResponse(c, http.StatusNotFound, "News not found", err)
@@ -371,7 +372,7 @@ func (h *NewsHandler) UpdateNews(c *gin.Context) {
 	}
 
 	// Check if slug already exists (excluding current news)
-	exists, err := h.newsRepo.CheckSlugExists(input.Slug, uint(id))
+	exists, err := h.newsRepo.CheckSlugExists(input.Slug, id)
 	if err != nil {
 		helpers.ErrorResponse(c, http.StatusInternalServerError, "Database error", err)
 		return
@@ -419,14 +420,14 @@ func (h *NewsHandler) UpdateNews(c *gin.Context) {
 // DeleteNews deletes a news article
 func (h *NewsHandler) DeleteNews(c *gin.Context) {
 	idStr := c.Param("id")
-	id, err := strconv.ParseUint(idStr, 10, 32)
+	id, err := uuid.Parse(idStr)
 	if err != nil {
 		helpers.ErrorResponse(c, http.StatusBadRequest, "Invalid news ID", err)
 		return
 	}
 
 	// Check if news exists
-	_, err = h.newsRepo.GetByID(uint(id))
+	_, err = h.newsRepo.GetByID(id)
 	if err != nil {
 		if err.Error() == "news not found" {
 			helpers.ErrorResponse(c, http.StatusNotFound, "News not found", err)
@@ -436,7 +437,7 @@ func (h *NewsHandler) DeleteNews(c *gin.Context) {
 		return
 	}
 
-	if err := h.newsRepo.Delete(uint(id)); err != nil {
+	if err := h.newsRepo.Delete(id); err != nil {
 		helpers.ErrorResponse(c, http.StatusInternalServerError, "Failed to delete news", err)
 		return
 	}

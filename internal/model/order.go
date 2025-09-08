@@ -3,15 +3,16 @@ package model
 import (
 	"time"
 
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
 type Order struct {
-	ID               uint           `json:"id" gorm:"primaryKey;autoIncrement"`
-	UserID           *uint          `json:"user_id" gorm:"index"` // Nullable for guest orders
-	OrderNumber      string         `json:"order_number" gorm:"unique;not null;size:50;index"`
-	Status           string         `json:"status" gorm:"not null;size:20;default:pending;index"`
-	PaymentStatus    string         `json:"payment_status" gorm:"not null;size:20;default:pending;index"`
+	ID               uuid.UUID      `json:"id" gorm:"type:char(36);primary_key"`
+	UserID           *uuid.UUID     `json:"user_id" gorm:"type:char(36);index"` // Nullable for guest orders
+	OrderNumber      string         `json:"order_number" gorm:"unique;not null;size:100;index"`
+	Status           string         `json:"status" gorm:"not null;size:50;default:pending;index"`
+	PaymentStatus    string         `json:"payment_status" gorm:"not null;size:50;default:pending;index"`
 	PaymentMethod    string         `json:"payment_method" gorm:"size:50"`
 	TotalAmount      float64        `json:"total_amount" gorm:"not null;type:decimal(10,2)"`
 	DiscountAmount   float64        `json:"discount_amount" gorm:"type:decimal(10,2);default:0"`
@@ -20,13 +21,14 @@ type Order struct {
 	CouponCode       string         `json:"coupon_code" gorm:"size:50"`
 	ShippingAddress  string         `json:"shipping_address" gorm:"type:text;not null"`
 	BillingAddress   string         `json:"billing_address" gorm:"type:text"`
-	CustomerName     string         `json:"customer_name" gorm:"not null;size:100"`
+	CustomerName     string         `json:"customer_name" gorm:"not null;size:255"`
 	CustomerPhone    string         `json:"customer_phone" gorm:"not null;size:20;index"` // Add index for lookup
-	CustomerEmail    string         `json:"customer_email" gorm:"not null;size:100;index"` // Add index for lookup
+	CustomerEmail    string         `json:"customer_email" gorm:"not null;size:255;index"` // Add index for lookup
 	Notes            string         `json:"notes" gorm:"type:text"`
 	IsGuestOrder     bool           `json:"is_guest_order" gorm:"default:false;index"` // New field to identify guest orders
 	ShippedAt        *time.Time     `json:"shipped_at"`
 	DeliveredAt      *time.Time     `json:"delivered_at"`
+	CancelledAt      *time.Time     `json:"cancelled_at"`
 	CreatedAt        time.Time      `json:"created_at" gorm:"autoCreateTime"`
 	UpdatedAt        time.Time      `json:"updated_at" gorm:"autoUpdateTime"`
 	DeletedAt        gorm.DeletedAt `json:"-" gorm:"index"`
@@ -36,10 +38,18 @@ type Order struct {
 	OrderItems []OrderItem  `json:"order_items,omitempty" gorm:"foreignKey:OrderID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
 }
 
+// BeforeCreate hook để tự động tạo UUID cho Order
+func (o *Order) BeforeCreate(tx *gorm.DB) (err error) {
+	if o.ID == uuid.Nil {
+		o.ID = uuid.New()
+	}
+	return
+}
+
 type OrderItem struct {
-	ID        uint           `json:"id" gorm:"primaryKey;autoIncrement"`
-	OrderID   uint           `json:"order_id" gorm:"not null;index"`
-	ProductID uint           `json:"product_id" gorm:"not null;index"`
+	ID        uuid.UUID      `json:"id" gorm:"type:char(36);primary_key"`
+	OrderID   uuid.UUID      `json:"order_id" gorm:"type:char(36);not null;index"`
+	ProductID uuid.UUID      `json:"product_id" gorm:"type:char(36);not null;index"`
 	Quantity  int            `json:"quantity" gorm:"not null;default:1"`
 	Price     float64        `json:"price" gorm:"not null;type:decimal(10,2)"`
 	Total     float64        `json:"total" gorm:"not null;type:decimal(10,2)"`
@@ -50,6 +60,14 @@ type OrderItem struct {
 	// Relationships
 	Order   *Order   `json:"order,omitempty" gorm:"foreignKey:OrderID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
 	Product *Product `json:"product,omitempty" gorm:"foreignKey:ProductID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT"`
+}
+
+// BeforeCreate hook để tự động tạo UUID cho OrderItem
+func (oi *OrderItem) BeforeCreate(tx *gorm.DB) (err error) {
+	if oi.ID == uuid.Nil {
+		oi.ID = uuid.New()
+	}
+	return
 }
 
 // TableName specifies the table name for Order model
@@ -63,7 +81,7 @@ func (OrderItem) TableName() string {
 }
 
 type OrderInput struct {
-	UserID          *uint               `json:"user_id"` // Optional for guest orders
+	UserID          *uuid.UUID          `json:"user_id"` // Optional for guest orders
 	PaymentMethod   string              `json:"payment_method" binding:"required,oneof=cod bank_transfer momo zalopay"`
 	CouponCode      string              `json:"coupon_code"`
 	ShippingAddress string              `json:"shipping_address" binding:"required"`
@@ -76,8 +94,8 @@ type OrderInput struct {
 }
 
 type OrderItemInput struct {
-	ProductID uint `json:"product_id" binding:"required"`
-	Quantity  int  `json:"quantity" binding:"required,min=1"`
+	ProductID uuid.UUID `json:"product_id" binding:"required"`
+	Quantity  int       `json:"quantity" binding:"required,min=1"`
 }
 
 type GuestOrderLookupInput struct {
@@ -85,8 +103,8 @@ type GuestOrderLookupInput struct {
 }
 
 type OrderResponse struct {
-	ID               uint                `json:"id"`
-	UserID           *uint               `json:"user_id"`
+	ID               uuid.UUID           `json:"id"`
+	UserID           *uuid.UUID          `json:"user_id"`
 	OrderNumber      string              `json:"order_number"`
 	Status           string              `json:"status"`
 	PaymentStatus    string              `json:"payment_status"`
@@ -111,9 +129,9 @@ type OrderResponse struct {
 }
 
 type OrderItemResponse struct {
-	ID        uint             `json:"id"`
-	OrderID   uint             `json:"order_id"`
-	ProductID uint             `json:"product_id"`
+	ID        uuid.UUID        `json:"id"`
+	OrderID   uuid.UUID        `json:"order_id"`
+	ProductID uuid.UUID        `json:"product_id"`
 	Product   *ProductResponse `json:"product,omitempty"`
 	Quantity  int              `json:"quantity"`
 	Price     float64          `json:"price"`

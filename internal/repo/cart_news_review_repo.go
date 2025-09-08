@@ -5,6 +5,7 @@ import (
 	"backend/internal/model"
 	"errors"
 
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
@@ -19,7 +20,7 @@ func NewCartRepo() *CartRepo {
 }
 
 // GetOrCreateCart lấy hoặc tạo giỏ hàng cho người dùng
-func (r *CartRepo) GetOrCreateCart(userID uint) (*model.Cart, error) {
+func (r *CartRepo) GetOrCreateCart(userID uuid.UUID) (*model.Cart, error) {
 	var cart model.Cart
 	err := r.db.Where("user_id = ?", userID).First(&cart).Error
 	
@@ -42,7 +43,7 @@ func (r *CartRepo) GetOrCreateCart(userID uint) (*model.Cart, error) {
 }
 
 // AddItem thêm mới hoặc cập nhật một mục trong giỏ hàng
-func (r *CartRepo) AddItem(userID, productID uint, quantity int) error {
+func (r *CartRepo) AddItem(userID, productID uuid.UUID, quantity int) error {
 	cart, err := r.GetOrCreateCart(userID)
 	if err != nil {
 		return err
@@ -70,7 +71,7 @@ func (r *CartRepo) AddItem(userID, productID uint, quantity int) error {
 }
 
 // UpdateItemQuantity cập nhật số lượng của mục trong giỏ
-func (r *CartRepo) UpdateItemQuantity(userID, productID uint, quantity int) error {
+func (r *CartRepo) UpdateItemQuantity(userID, productID uuid.UUID, quantity int) error {
 	cart, err := r.GetOrCreateCart(userID)
 	if err != nil {
 		return err
@@ -86,7 +87,7 @@ func (r *CartRepo) UpdateItemQuantity(userID, productID uint, quantity int) erro
 }
 
 // RemoveItem xóa một mục khỏi giỏ hàng
-func (r *CartRepo) RemoveItem(userID, productID uint) error {
+func (r *CartRepo) RemoveItem(userID, productID uuid.UUID) error {
 	cart, err := r.GetOrCreateCart(userID)
 	if err != nil {
 		return err
@@ -96,7 +97,7 @@ func (r *CartRepo) RemoveItem(userID, productID uint) error {
 }
 
 // ClearCart xóa toàn bộ mục trong giỏ hàng
-func (r *CartRepo) ClearCart(userID uint) error {
+func (r *CartRepo) ClearCart(userID uuid.UUID) error {
 	cart, err := r.GetOrCreateCart(userID)
 	if err != nil {
 		return err
@@ -121,9 +122,9 @@ func (r *NewsRepo) Create(news *model.News) error {
 }
 
 // GetByID lấy bài viết tin tức theo ID
-func (r *NewsRepo) GetByID(id uint) (*model.News, error) {
+func (r *NewsRepo) GetByID(id uuid.UUID) (*model.News, error) {
 	var news model.News
-	err := r.db.Preload("Author").First(&news, id).Error
+	err := r.db.Preload("Author").Where("id = ?", id).First(&news).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, errors.New("news not found")
@@ -180,20 +181,20 @@ func (r *NewsRepo) Update(news *model.News) error {
 }
 
 // Delete xóa mềm một bài viết tin tức
-func (r *NewsRepo) Delete(id uint) error {
-	return r.db.Delete(&model.News{}, id).Error
+func (r *NewsRepo) Delete(id uuid.UUID) error {
+	return r.db.Where("id = ?", id).Delete(&model.News{}).Error
 }
 
 // IncrementViewCount tăng số lượt xem
-func (r *NewsRepo) IncrementViewCount(id uint) error {
+func (r *NewsRepo) IncrementViewCount(id uuid.UUID) error {
 	return r.db.Model(&model.News{}).Where("id = ?", id).UpdateColumn("view_count", gorm.Expr("view_count + ?", 1)).Error
 }
 
 // CheckSlugExists kiểm tra slug đã tồn tại hay chưa
-func (r *NewsRepo) CheckSlugExists(slug string, excludeID uint) (bool, error) {
+func (r *NewsRepo) CheckSlugExists(slug string, excludeID uuid.UUID) (bool, error) {
 	var count int64
 	query := r.db.Model(&model.News{}).Where("slug = ?", slug)
-	if excludeID > 0 {
+	if excludeID != uuid.Nil {
 		query = query.Where("id != ?", excludeID)
 	}
 	err := query.Count(&count).Error
@@ -216,7 +217,7 @@ func (r *ReviewRepo) Create(review *model.Review) error {
 }
 
 // GetByProductID lấy danh sách đánh giá theo ID sản phẩm
-func (r *ReviewRepo) GetByProductID(productID uint, page, limit int) ([]model.Review, int64, error) {
+func (r *ReviewRepo) GetByProductID(productID uuid.UUID, page, limit int) ([]model.Review, int64, error) {
 	var reviews []model.Review
 	var total int64
 
@@ -240,7 +241,7 @@ func (r *ReviewRepo) GetByProductID(productID uint, page, limit int) ([]model.Re
 }
 
 // GetByUserID lấy danh sách đánh giá theo ID người dùng
-func (r *ReviewRepo) GetByUserID(userID uint, page, limit int) ([]model.Review, int64, error) {
+func (r *ReviewRepo) GetByUserID(userID uuid.UUID, page, limit int) ([]model.Review, int64, error) {
 	var reviews []model.Review
 	var total int64
 
@@ -264,7 +265,7 @@ func (r *ReviewRepo) GetByUserID(userID uint, page, limit int) ([]model.Review, 
 }
 
 // CheckUserReviewExists kiểm tra người dùng đã đánh giá sản phẩm này chưa
-func (r *ReviewRepo) CheckUserReviewExists(userID, productID uint) (bool, error) {
+func (r *ReviewRepo) CheckUserReviewExists(userID, productID uuid.UUID) (bool, error) {
 	var count int64
 	err := r.db.Model(&model.Review{}).Where("user_id = ? AND product_id = ?", userID, productID).Count(&count).Error
 	return count > 0, err
@@ -276,11 +277,11 @@ func (r *ReviewRepo) Update(review *model.Review) error {
 }
 
 // Delete xóa mềm một đánh giá
-func (r *ReviewRepo) Delete(id uint) error {
-	return r.db.Delete(&model.Review{}, id).Error
+func (r *ReviewRepo) Delete(id uuid.UUID) error {
+	return r.db.Where("id = ?", id).Delete(&model.Review{}).Error
 }
 
 // ToggleStatus đảo trạng thái kích hoạt của đánh giá
-func (r *ReviewRepo) ToggleStatus(id uint) error {
+func (r *ReviewRepo) ToggleStatus(id uuid.UUID) error {
 	return r.db.Model(&model.Review{}).Where("id = ?", id).Update("is_active", gorm.Expr("NOT is_active")).Error
 }

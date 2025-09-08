@@ -6,10 +6,10 @@ import (
 	"backend/internal/repo"
 	"errors"
 	"net/http"
-	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 type CategoryHandler struct {
@@ -34,7 +34,7 @@ func (h *CategoryHandler) CreateCategory(c *gin.Context) {
 	input.Slug = strings.ToLower(strings.ReplaceAll(strings.TrimSpace(input.Slug), " ", "-"))
 
 	// Kiểm tra xem slug đã tồn tại chưa
-	exists, err := h.categoryRepo.CheckSlugExists(input.Slug, 0)
+	exists, err := h.categoryRepo.CheckSlugExists(input.Slug, uuid.Nil)
 	if err != nil {
 		helpers.ErrorResponse(c, http.StatusInternalServerError, "Lỗi cơ sở dữ liệu", err)
 		return
@@ -96,13 +96,13 @@ func (h *CategoryHandler) GetCategories(c *gin.Context) {
 // GetCategoryByID lấy danh mục theo ID
 func (h *CategoryHandler) GetCategoryByID(c *gin.Context) {
 	idStr := c.Param("id")
-	id, err := strconv.ParseUint(idStr, 10, 32)
+	id, err := uuid.Parse(idStr)
 	if err != nil {
-		helpers.ErrorResponse(c, http.StatusBadRequest, "ID danh mục không hợp lệ", errors.New("ID danh mục phải là số hợp lệ"))
+		helpers.ErrorResponse(c, http.StatusBadRequest, "ID danh mục không hợp lệ", errors.New("ID danh mục phải là UUID hợp lệ"))
 		return
 	}
 
-	category, err := h.categoryRepo.GetByID(uint(id))
+	category, err := h.categoryRepo.GetByID(id)
 	if err != nil {
 		if err.Error() == "category not found" {
 			helpers.ErrorResponse(c, http.StatusNotFound, "Không tìm thấy danh mục", err)
@@ -147,9 +147,9 @@ func (h *CategoryHandler) GetCategoryBySlug(c *gin.Context) {
 // UpdateCategory cập nhật danh mục
 func (h *CategoryHandler) UpdateCategory(c *gin.Context) {
 	idStr := c.Param("id")
-	id, err := strconv.ParseUint(idStr, 10, 32)
+	id, err := uuid.Parse(idStr)
 	if err != nil {
-		helpers.ErrorResponse(c, http.StatusBadRequest, "ID danh mục không hợp lệ", errors.New("ID danh mục phải là số hợp lệ"))
+		helpers.ErrorResponse(c, http.StatusBadRequest, "ID danh mục không hợp lệ", errors.New("ID danh mục phải là UUID hợp lệ"))
 		return
 	}
 
@@ -160,7 +160,7 @@ func (h *CategoryHandler) UpdateCategory(c *gin.Context) {
 	}
 
 	// Lấy danh mục hiện tại
-	category, err := h.categoryRepo.GetByID(uint(id))
+	category, err := h.categoryRepo.GetByID(id)
 	if err != nil {
 		if err.Error() == "category not found" {
 			helpers.ErrorResponse(c, http.StatusNotFound, "Không tìm thấy danh mục", err)
@@ -174,7 +174,7 @@ func (h *CategoryHandler) UpdateCategory(c *gin.Context) {
 	input.Slug = strings.ToLower(strings.ReplaceAll(strings.TrimSpace(input.Slug), " ", "-"))
 
 	// Kiểm tra xem slug đã tồn tại chưa (loại trừ danh mục hiện tại)
-	exists, err := h.categoryRepo.CheckSlugExists(input.Slug, uint(id))
+	exists, err := h.categoryRepo.CheckSlugExists(input.Slug, id)
 	if err != nil {
 		helpers.ErrorResponse(c, http.StatusInternalServerError, "Lỗi cơ sở dữ liệu", err)
 		return
@@ -188,6 +188,9 @@ func (h *CategoryHandler) UpdateCategory(c *gin.Context) {
 	category.Name = input.Name
 	category.Description = input.Description
 	category.Slug = input.Slug
+	if input.IsActive != nil {
+		category.IsActive = *input.IsActive
+	}
 
 	if err := h.categoryRepo.Update(category); err != nil {
 		helpers.ErrorResponse(c, http.StatusInternalServerError, "Không thể cập nhật danh mục", err)
@@ -204,14 +207,14 @@ func (h *CategoryHandler) UpdateCategory(c *gin.Context) {
 // DeleteCategory xóa danh mục
 func (h *CategoryHandler) DeleteCategory(c *gin.Context) {
 	idStr := c.Param("id")
-	id, err := strconv.ParseUint(idStr, 10, 32)
+	id, err := uuid.Parse(idStr)
 	if err != nil {
-		helpers.ErrorResponse(c, http.StatusBadRequest, "ID danh mục không hợp lệ", errors.New("ID danh mục phải là số hợp lệ"))
+		helpers.ErrorResponse(c, http.StatusBadRequest, "ID danh mục không hợp lệ", errors.New("ID danh mục phải là UUID hợp lệ"))
 		return
 	}
 
 	// Kiểm tra xem danh mục có tồn tại không
-	_, err = h.categoryRepo.GetByID(uint(id))
+	_, err = h.categoryRepo.GetByID(id)
 	if err != nil {
 		if err.Error() == "category not found" {
 			helpers.ErrorResponse(c, http.StatusNotFound, "Không tìm thấy danh mục", err)
@@ -221,7 +224,7 @@ func (h *CategoryHandler) DeleteCategory(c *gin.Context) {
 		return
 	}
 
-	if err := h.categoryRepo.Delete(uint(id)); err != nil {
+	if err := h.categoryRepo.Delete(id); err != nil {
 		helpers.ErrorResponse(c, http.StatusInternalServerError, "Không thể xóa danh mục", err)
 		return
 	}

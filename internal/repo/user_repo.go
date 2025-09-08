@@ -3,6 +3,7 @@ package repo
 import (
 	"backend/internal/model"
 
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
@@ -18,9 +19,9 @@ func (r *UserRepository) CreateUser(user *model.User) error {
 	return r.db.Create(user).Error
 }
 
-func (r *UserRepository) GetUserByID(id uint) (*model.User, error) {
+func (r *UserRepository) GetUserByID(id uuid.UUID) (*model.User, error) {
 	var user model.User
-	err := r.db.First(&user, id).Error
+	err := r.db.First(&user, "id = ?", id).Error
 	if err != nil {
 		return nil, err
 	}
@@ -49,8 +50,8 @@ func (r *UserRepository) UpdateUser(user *model.User) error {
 	return r.db.Save(user).Error
 }
 
-func (r *UserRepository) DeleteUser(id uint) error {
-	return r.db.Delete(&model.User{}, id).Error
+func (r *UserRepository) DeleteUser(id uuid.UUID) error {
+	return r.db.Delete(&model.User{}, "id = ?", id).Error
 }
 
 func (r *UserRepository) GetAllUsers() ([]model.User, error) {
@@ -102,7 +103,7 @@ func (r *UserRepository) GetUsersByRole(role string, page, limit int) ([]model.U
 }
 
 // UpdateUserRole cập nhật vai trò người dùng (kèm kiểm tra quyền)
-func (r *UserRepository) UpdateUserRole(userID uint, newRole string) error {
+func (r *UserRepository) UpdateUserRole(userID uuid.UUID, newRole string) error {
 	return r.db.Model(&model.User{}).Where("id = ?", userID).Update("role", newRole).Error
 }
 
@@ -141,14 +142,14 @@ func (r *UserRepository) GetUserStats() (map[string]interface{}, error) {
 }
 
 // CheckUserCanManage kiểm tra người dùng có thể quản lý user mục tiêu không
-func (r *UserRepository) CheckUserCanManage(managerID, targetID uint) (bool, error) {
+func (r *UserRepository) CheckUserCanManage(managerID, targetID uuid.UUID) (bool, error) {
 	var manager, target model.User
 	
-	if err := r.db.First(&manager, managerID).Error; err != nil {
+	if err := r.db.First(&manager, "id = ?", managerID).Error; err != nil {
 		return false, err
 	}
 	
-	if err := r.db.First(&target, targetID).Error; err != nil {
+	if err := r.db.First(&target, "id = ?", targetID).Error; err != nil {
 		return false, err
 	}
 

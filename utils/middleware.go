@@ -9,6 +9,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 )
 
 func AuthMiddleware() gin.HandlerFunc {
@@ -43,8 +44,22 @@ func AuthMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		 // Đặt thông tin người dùng vào context - FIX: sử dụng đúng key "role"
-		c.Set("user_id", uint(claims["user_id"].(float64)))
+		 // Đặt thông tin người dùng vào context - FIX: sử dụng UUID
+		userIDStr, ok := claims["user_id"].(string)
+		if !ok {
+			helpers.UnauthorizedResponse(c, consts.MSG_UNAUTHORIZED)
+			c.Abort()
+			return
+		}
+		
+		userID, err := uuid.Parse(userIDStr)
+		if err != nil {
+			helpers.UnauthorizedResponse(c, consts.MSG_UNAUTHORIZED)
+			c.Abort()
+			return
+		}
+
+		c.Set("user_id", userID)
 		c.Set("username", claims["username"].(string))
 		c.Set("user_role", claims["role"].(string)) // Key này phải khớp với AdminMiddleware
 

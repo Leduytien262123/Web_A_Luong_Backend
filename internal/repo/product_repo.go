@@ -5,6 +5,7 @@ import (
 	"backend/internal/model"
 	"errors"
 
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
@@ -24,9 +25,9 @@ func (r *ProductRepo) Create(product *model.Product) error {
 }
 
 // GetByID lấy sản phẩm theo ID kèm danh mục
-func (r *ProductRepo) GetByID(id uint) (*model.Product, error) {
+func (r *ProductRepo) GetByID(id uuid.UUID) (*model.Product, error) {
 	var product model.Product
-	err := r.db.Preload("Category").First(&product, id).Error
+	err := r.db.Preload("Category").Where("id = ?", id).First(&product).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, errors.New("product not found")
@@ -73,7 +74,7 @@ func (r *ProductRepo) GetAll(page, limit int) ([]model.Product, int64, error) {
 }
 
 // GetByCategoryID lấy sản phẩm theo ID danh mục
-func (r *ProductRepo) GetByCategoryID(categoryID uint, page, limit int) ([]model.Product, int64, error) {
+func (r *ProductRepo) GetByCategoryID(categoryID uuid.UUID, page, limit int) ([]model.Product, int64, error) {
 	var products []model.Product
 	var total int64
 
@@ -102,15 +103,15 @@ func (r *ProductRepo) Update(product *model.Product) error {
 }
 
 // Delete xóa mềm sản phẩm
-func (r *ProductRepo) Delete(id uint) error {
-	return r.db.Delete(&model.Product{}, id).Error
+func (r *ProductRepo) Delete(id uuid.UUID) error {
+	return r.db.Where("id = ?", id).Delete(&model.Product{}).Error
 }
 
 // CheckSKUExists kiểm tra SKU đã tồn tại (loại trừ sản phẩm khác khi truyền excludeID)
-func (r *ProductRepo) CheckSKUExists(sku string, excludeID uint) (bool, error) {
+func (r *ProductRepo) CheckSKUExists(sku string, excludeID uuid.UUID) (bool, error) {
 	var count int64
 	query := r.db.Model(&model.Product{}).Where("sku = ?", sku)
-	if excludeID > 0 {
+	if excludeID != uuid.Nil {
 		query = query.Where("id != ?", excludeID)
 	}
 	err := query.Count(&count).Error
@@ -118,6 +119,6 @@ func (r *ProductRepo) CheckSKUExists(sku string, excludeID uint) (bool, error) {
 }
 
 // UpdateStock cập nhật tồn kho sản phẩm
-func (r *ProductRepo) UpdateStock(id uint, stock int) error {
+func (r *ProductRepo) UpdateStock(id uuid.UUID, stock int) error {
 	return r.db.Model(&model.Product{}).Where("id = ?", id).Update("stock", stock).Error
 }

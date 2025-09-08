@@ -3,12 +3,13 @@ package model
 import (
 	"time"
 
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
 type Cart struct {
-	ID        uint           `json:"id" gorm:"primaryKey;autoIncrement"`
-	UserID    uint           `json:"user_id" gorm:"not null;index"`
+	ID        uuid.UUID      `json:"id" gorm:"type:char(36);primary_key"`
+	UserID    uuid.UUID      `json:"user_id" gorm:"type:char(36);not null;index"`
 	CreatedAt time.Time      `json:"created_at" gorm:"autoCreateTime"`
 	UpdatedAt time.Time      `json:"updated_at" gorm:"autoUpdateTime"`
 	DeletedAt gorm.DeletedAt `json:"-" gorm:"index"`
@@ -18,10 +19,18 @@ type Cart struct {
 	CartItems []CartItem `json:"cart_items,omitempty" gorm:"foreignKey:CartID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
 }
 
+// BeforeCreate hook để tự động tạo UUID cho Cart
+func (c *Cart) BeforeCreate(tx *gorm.DB) (err error) {
+	if c.ID == uuid.Nil {
+		c.ID = uuid.New()
+	}
+	return
+}
+
 type CartItem struct {
-	ID        uint           `json:"id" gorm:"primaryKey;autoIncrement"`
-	CartID    uint           `json:"cart_id" gorm:"not null;index"`
-	ProductID uint           `json:"product_id" gorm:"not null;index"`
+	ID        uuid.UUID      `json:"id" gorm:"type:char(36);primary_key"`
+	CartID    uuid.UUID      `json:"cart_id" gorm:"type:char(36);not null;index"`
+	ProductID uuid.UUID      `json:"product_id" gorm:"type:char(36);not null;index"`
 	Quantity  int            `json:"quantity" gorm:"not null;default:1"`
 	CreatedAt time.Time      `json:"created_at" gorm:"autoCreateTime"`
 	UpdatedAt time.Time      `json:"updated_at" gorm:"autoUpdateTime"`
@@ -30,6 +39,14 @@ type CartItem struct {
 	// Relationships
 	Cart    *Cart    `json:"cart,omitempty" gorm:"foreignKey:CartID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
 	Product *Product `json:"product,omitempty" gorm:"foreignKey:ProductID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
+}
+
+// BeforeCreate hook để tự động tạo UUID cho CartItem
+func (ci *CartItem) BeforeCreate(tx *gorm.DB) (err error) {
+	if ci.ID == uuid.Nil {
+		ci.ID = uuid.New()
+	}
+	return
 }
 
 // TableName specifies the table name for Cart model
@@ -43,13 +60,13 @@ func (CartItem) TableName() string {
 }
 
 type CartItemInput struct {
-	ProductID uint `json:"product_id" binding:"required"`
-	Quantity  int  `json:"quantity" binding:"required,min=1"`
+	ProductID uuid.UUID `json:"product_id" binding:"required"`
+	Quantity  int       `json:"quantity" binding:"required,min=1"`
 }
 
 type CartResponse struct {
-	ID         uint                `json:"id"`
-	UserID     uint                `json:"user_id"`
+	ID         uuid.UUID           `json:"id"`
+	UserID     uuid.UUID           `json:"user_id"`
 	CartItems  []CartItemResponse  `json:"cart_items"`
 	TotalItems int                 `json:"total_items"`
 	TotalPrice float64             `json:"total_price"`
@@ -58,9 +75,9 @@ type CartResponse struct {
 }
 
 type CartItemResponse struct {
-	ID        uint             `json:"id"`
-	CartID    uint             `json:"cart_id"`
-	ProductID uint             `json:"product_id"`
+	ID        uuid.UUID        `json:"id"`
+	CartID    uuid.UUID        `json:"cart_id"`
+	ProductID uuid.UUID        `json:"product_id"`
 	Product   *ProductResponse `json:"product,omitempty"`
 	Quantity  int              `json:"quantity"`
 	SubTotal  float64          `json:"sub_total"`
