@@ -3,7 +3,6 @@ package utils
 import (
 	"backend/internal/consts"
 	"backend/internal/helpers"
-	"log"
 	"net/http"
 	"strings"
 
@@ -12,16 +11,17 @@ import (
 	"github.com/google/uuid"
 )
 
+// Auth middleware để xác thực JWT token
 func AuthMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authHeader := c.GetHeader("Authorization")
-		if (authHeader == "") {
+		if authHeader == "" {
 			helpers.UnauthorizedResponse(c, consts.MSG_UNAUTHORIZED)
 			c.Abort()
 			return
 		}
 
-		 // Kiểm tra định dạng Bearer token
+		// Kiểm tra định dạng Bearer token
 		tokenParts := strings.Split(authHeader, " ")
 		if len(tokenParts) != 2 || tokenParts[0] != "Bearer" {
 			helpers.UnauthorizedResponse(c, consts.MSG_UNAUTHORIZED)
@@ -29,8 +29,7 @@ func AuthMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		tokenString := tokenParts[1]
-		token, err := helpers.ValidateJWT(tokenString)
+		token, err := helpers.ValidateJWT(tokenParts[1])
 		if err != nil || !token.Valid {
 			helpers.UnauthorizedResponse(c, consts.MSG_UNAUTHORIZED)
 			c.Abort()
@@ -44,7 +43,7 @@ func AuthMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		 // Đặt thông tin người dùng vào context - FIX: sử dụng UUID
+		// Parse và set user info
 		userIDStr, ok := claims["user_id"].(string)
 		if !ok {
 			helpers.UnauthorizedResponse(c, consts.MSG_UNAUTHORIZED)
@@ -61,94 +60,67 @@ func AuthMiddleware() gin.HandlerFunc {
 
 		c.Set("user_id", userID)
 		c.Set("username", claims["username"].(string))
-		c.Set("user_role", claims["role"].(string)) // Key này phải khớp với AdminMiddleware
-
+		c.Set("user_role", claims["role"].(string))
 		c.Next()
 	}
 }
 
-func AdminMiddleware() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		role, exists := c.Get("user_role")
-		if !exists || (role != consts.RoleAdmin && role != consts.RoleOwner && role != "admin" && role != "owner") {
-			helpers.ForbiddenResponse(c, consts.MSG_FORBIDDEN)
-			c.Abort()
-			return
-		}
-		c.Next()
-	}
-}
-
+// CORS middleware để xử lý cross-origin requests
 func CORSMiddleware() gin.HandlerFunc {
-	return gin.HandlerFunc(func(c *gin.Context) {
+	return func(c *gin.Context) {
 		origin := c.Request.Header.Get("Origin")
 		
-		// Log để debug
-		log.Printf("[CORS] Method: %s, Path: %s, Origin: %s", c.Request.Method, c.Request.URL.Path, origin)
-
-		// Luôn set CORS headers trước
+		// Set CORS headers
 		c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
 		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
 		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With")
 		c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT, DELETE, PATCH")
 		c.Writer.Header().Set("Access-Control-Max-Age", "86400")
 
-		// Xử lý preflight OPTIONS request
+		// Handle preflight OPTIONS request
 		if c.Request.Method == "OPTIONS" {
-			log.Printf("[CORS] Handling OPTIONS preflight for %s", c.Request.URL.Path)
 			c.AbortWithStatus(http.StatusOK)
 			return
 		}
 
-		// Tiếp tục xử lý request
 		c.Next()
-	})
+	}
 }
 
-// Middleware kiểm tra người dùng có vai trò owner
+// Generic role middleware
+func roleMiddleware(allowedRoles []string, message string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		role, exists := c.Get("user_role")
+		if !exists {
+			helpers.ForbiddenResponse(c, consts.MSG_FORBIDDEN)
+			c.Abort()
+			return
+		}
+
+		roleStr := role.(string)
+		for _, allowedRole := range allowedRoles {
+			if roleStr == allowedRole {
+				c.Next()
+				return
+			}
+		}
+
+		helpers.ForbiddenResponse(c, message)
+		c.Abort()
+	}
+}
+
+// Admin middleware (admin hoặc owner)
+func AdminMiddleware() gin.HandlerFunc {
+	return roleMiddleware([]string{consts.RoleAdmin, consts.RoleOwner}, consts.MSG_FORBIDDEN)
+}
+
+// Owner middleware (chỉ owner)
 func OwnerMiddleware() gin.HandlerFunc {
-	return gin.HandlerFunc(func(c *gin.Context) {
-		userRole, exists := c.Get("user_role")
-		if (!exists || userRole != "owner") {
-			c.JSON(http.StatusForbidden, gin.H{
-				"success": false,
-				"message": "Yêu cầu quyền truy cập Owner",
-			})
-			c.Abort()
-			return
-		}
-		c.Next()
-	})
+	return roleMiddleware([]string{consts.RoleOwner}, "Yêu cầu quyền truy cập Owner")
 }
 
-// Middleware kiểm tra người dùng có vai trò owner hoặc admin
-func OwnerOrAdminMiddleware() gin.HandlerFunc {
-	return gin.HandlerFunc(func(c *gin.Context) {
-		userRole, exists := c.Get("user_role")
-		if (!exists || (userRole != "owner" && userRole != "admin")) {
-			c.JSON(http.StatusForbidden, gin.H{
-				"success": false,
-				"message": "Yêu cầu quyền truy cập Admin hoặc Owner",
-			})
-			c.Abort()
-			return
-		}
-		c.Next()
-	})
-}
-
-// Middleware kiểm tra người dùng có vai trò member, admin hoặc owner
+// Member middleware (member, admin hoặc owner)
 func MemberOrAboveMiddleware() gin.HandlerFunc {
-	return gin.HandlerFunc(func(c *gin.Context) {
-		userRole, exists := c.Get("user_role")
-		if (!exists || (userRole != "owner" && userRole != "admin" && userRole != "member")) {
-			c.JSON(http.StatusForbidden, gin.H{
-				"success": false,
-				"message": "Yêu cầu quyền truy cập Member, Admin hoặc Owner",
-			})
-			c.Abort()
-			return
-		}
-		c.Next()
-	})
+	return roleMiddleware([]string{"member", consts.RoleAdmin, consts.RoleOwner}, "Yêu cầu quyền truy cập Member trở lên")
 }

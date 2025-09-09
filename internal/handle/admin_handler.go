@@ -41,7 +41,7 @@ func (h *AdminHandler) GetUserByID(c *gin.Context) {
 	idParam := c.Param("id")
 	userID, err := uuid.Parse(idParam)
 	if err != nil {
-		helpers.ValidationErrorResponse(c, "ID người dùng không hợp lệ")
+		helpers.BadRequestResponse(c, "ID người dùng không hợp lệ")
 		return
 	}
 
@@ -62,7 +62,7 @@ func (h *AdminHandler) UpdateUserRole(c *gin.Context) {
 	idParam := c.Param("id")
 	userID, err := uuid.Parse(idParam)
 	if err != nil {
-		helpers.ValidationErrorResponse(c, "ID người dùng không hợp lệ")
+		helpers.BadRequestResponse(c, "ID người dùng không hợp lệ")
 		return
 	}
 
@@ -71,13 +71,13 @@ func (h *AdminHandler) UpdateUserRole(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&input); err != nil {
-		helpers.ValidationErrorResponse(c, consts.MSG_VALIDATION_ERROR)
+		helpers.BadRequestResponse(c, consts.MSG_VALIDATION_ERROR)
 		return
 	}
 
 	// Xác thực vai trò
 	if input.Role != consts.ROLE_ADMIN && input.Role != consts.ROLE_USER {
-		helpers.ValidationErrorResponse(c, "Vai trò không hợp lệ")
+		helpers.BadRequestResponse(c, "Vai trò không hợp lệ")
 		return
 	}
 
@@ -104,7 +104,7 @@ func (h *AdminHandler) ToggleUserStatus(c *gin.Context) {
 	idParam := c.Param("id")
 	userID, err := uuid.Parse(idParam)
 	if err != nil {
-		helpers.ValidationErrorResponse(c, "ID người dùng không hợp lệ")
+		helpers.BadRequestResponse(c, "ID người dùng không hợp lệ")
 		return
 	}
 
@@ -131,7 +131,7 @@ func (h *AdminHandler) DeleteUser(c *gin.Context) {
 	idParam := c.Param("id")
 	userID, err := uuid.Parse(idParam)
 	if err != nil {
-		helpers.ValidationErrorResponse(c, "ID người dùng không hợp lệ")
+		helpers.BadRequestResponse(c, "ID người dùng không hợp lệ")
 		return
 	}
 
@@ -413,7 +413,7 @@ func (h *AdminHandler) UpdateUser(c *gin.Context) {
 	
 	var input model.UpdateUserInput
 	if err := c.ShouldBindJSON(&input); err != nil {
-		helpers.ValidationErrorResponse(c, consts.MSG_VALIDATION_ERROR)
+		helpers.BadRequestResponse(c, consts.MSG_VALIDATION_ERROR)
 		return
 	}
 

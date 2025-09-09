@@ -23,7 +23,7 @@ func NewAuthHandler(userRepo *repo.UserRepository) *AuthHandler {
 func (h *AuthHandler) Register(c *gin.Context) {
 	var input model.UserInput
 	if err := c.ShouldBindJSON(&input); err != nil {
-		helpers.ValidationErrorResponse(c, consts.MSG_VALIDATION_ERROR)
+		helpers.BadRequestResponse(c, consts.MSG_VALIDATION_ERROR)
 		return
 	}
 
@@ -79,7 +79,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 func (h *AuthHandler) Login(c *gin.Context) {
 	var input model.LoginInput
 	if err := c.ShouldBindJSON(&input); err != nil {
-		helpers.ValidationErrorResponse(c, consts.MSG_VALIDATION_ERROR)
+		helpers.BadRequestResponse(c, consts.MSG_VALIDATION_ERROR)
 		return
 	}
 
@@ -150,7 +150,7 @@ func (h *AuthHandler) UpdateProfile(c *gin.Context) {
 
 	var input model.UpdateUserInput
 	if err := c.ShouldBindJSON(&input); err != nil {
-		helpers.ValidationErrorResponse(c, consts.MSG_VALIDATION_ERROR)
+		helpers.BadRequestResponse(c, consts.MSG_VALIDATION_ERROR)
 		return
 	}
 

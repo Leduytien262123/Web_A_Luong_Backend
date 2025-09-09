@@ -84,10 +84,7 @@ func Connect() {
 }
 
 func runMigrations() error {
-	// Tắt foreign key checks tạm thời
-	DB.Exec("SET FOREIGN_KEY_CHECKS = 0")
-	
-	// Tự động migrate tất cả các model
+	// Chỉ migrate - không drop table
 	err := DB.AutoMigrate(
 		&model.User{},
 		&model.Category{},
@@ -104,11 +101,60 @@ func runMigrations() error {
 		&model.News{},
 	)
 	
+	return err
+}
+
+// ResetDatabase - CHỈ SỬ DỤNG CHO DEVELOPMENT KHI CẦN RESET TOÀN BỘ DATABASE!
+// CÁCH SỬ DỤNG:
+// 1. Uncomment toàn bộ function này
+// 2. Trong main.go, thêm dòng: app.ResetDatabase() TRƯỚC app.Connect()
+// 3. Chạy server 1 lần để reset
+// 4. Comment lại function này và xóa dòng app.ResetDatabase() trong main.go
+// 5. Restart server bình thường
+/*
+func ResetDatabase() error {
+	if os.Getenv("GIN_MODE") == "release" {
+		return fmt.Errorf("không thể reset database trong production mode")
+	}
+	
+	log.Println("🚨 RESETTING DATABASE - ALL DATA WILL BE LOST!")
+	
+	// Tắt foreign key checks tạm thời
+	DB.Exec("SET FOREIGN_KEY_CHECKS = 0")
+	
+	// Drop tất cả table
+	DB.Migrator().DropTable(
+		&model.OrderItem{},
+		&model.Order{},
+		&model.CartItem{},
+		&model.Cart{},
+		&model.Review{},
+		&model.ProductImage{},
+		&model.Product{},
+		&model.Category{},
+		&model.Brand{},
+		&model.News{},
+		&model.Address{},
+		&model.Coupon{},
+		&model.User{},
+	)
+	
+	log.Println("✅ All tables dropped")
+	
+	// Migrate lại
+	err := runMigrations()
+	if err != nil {
+		log.Printf("❌ Migration failed: %v", err)
+		return err
+	}
+	
 	// Bật lại foreign key checks
 	DB.Exec("SET FOREIGN_KEY_CHECKS = 1")
 	
-	return err
+	log.Println("✅ Database reset completed!")
+	return nil
 }
+*/
 
 func GetDB() *gorm.DB {
 	return DB

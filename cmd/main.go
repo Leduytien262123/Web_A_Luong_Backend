@@ -20,9 +20,11 @@ func main() {
 	// Connect to database and initialize
 	app.Connect()
 
-	// Set Gin mode
-	if os.Getenv("GIN_MODE") == "release" {
-		gin.SetMode(gin.ReleaseMode)
+	// Set Gin mode - Kiểm tra env variable để quyết định debug mode
+	if os.Getenv("GIN_DEBUG") == "true" {
+		gin.SetMode(gin.DebugMode) // Bật debug logs nếu GIN_DEBUG=true
+	} else {
+		gin.SetMode(gin.ReleaseMode) // Mặc định tắt debug logs
 	}
 
 	// Initialize Gin router
@@ -39,22 +41,10 @@ func main() {
 	// Add CORS middleware FIRST - before any other middleware
 	r.Use(utils.CORSMiddleware())
 
-	// Setup routes
-	router.SetupAuthRoutes(r)
-	router.SetupAdminRoutes(r)
-	router.SetupCategoryRoutes(r)
-	router.SetupProductRoutes(r)
-	router.SetupOrderRoutes(r)
-	router.SetupCartRoutes(r)
-	router.SetupNewsRoutes(r)
-
-	// Health check endpoint
-	r.GET("/health", func(c *gin.Context) {
-		c.JSON(200, gin.H{
-			"status":  "OK",
-			"message": "Server is running",
-		})
-	})
+	// Setup routes - Đã tổ chức lại thành 3 file chính
+	router.SetupAuthRoutes(r)  // Routes xác thực và API ngoài lề
+	router.SetupUserRoutes(r)  // Routes dành cho người dùng
+	router.SetupAdminRoutes(r) // Routes dành cho admin/owner
 
 	// Start server
 	port := os.Getenv("PORT")
@@ -63,7 +53,7 @@ func main() {
 	}
 
 	log.Printf("Server starting on port %s", port)
-	log.Printf("Server will be available at: http://localhost:%s", port)
+	// log.Printf("Server will be available at: http://localhost:%s", port)
 	if err := r.Run(":" + port); err != nil {
 		log.Printf("Failed to start server on port %s: %v", port, err)
 		log.Println("Tip: Port might be in use. Try changing PORT in .env file")

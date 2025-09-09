@@ -13,6 +13,7 @@ type Response struct {
 	Error   string      `json:"error,omitempty"`
 }
 
+// Success response helper
 func SuccessResponse(c *gin.Context, message string, data interface{}) {
 	c.JSON(http.StatusOK, Response{
 		Success: true,
@@ -21,6 +22,7 @@ func SuccessResponse(c *gin.Context, message string, data interface{}) {
 	})
 }
 
+// Generic error response helper
 func ErrorResponse(c *gin.Context, statusCode int, message string, err error) {
 	response := Response{
 		Success: false,
@@ -34,23 +36,23 @@ func ErrorResponse(c *gin.Context, statusCode int, message string, err error) {
 	c.JSON(statusCode, response)
 }
 
-func ValidationErrorResponse(c *gin.Context, message string) {
-	c.JSON(http.StatusBadRequest, Response{
-		Success: false,
-		Message: message,
-	})
+// Quick helpers for common error types
+func BadRequestResponse(c *gin.Context, message string) {
+	ErrorResponse(c, http.StatusBadRequest, message, nil)
 }
 
 func UnauthorizedResponse(c *gin.Context, message string) {
-	c.JSON(http.StatusUnauthorized, Response{
-		Success: false,
-		Message: message,
-	})
+	ErrorResponse(c, http.StatusUnauthorized, message, nil)
 }
 
 func ForbiddenResponse(c *gin.Context, message string) {
-	c.JSON(http.StatusForbidden, Response{
-		Success: false,
-		Message: message,
-	})
+	ErrorResponse(c, http.StatusForbidden, message, nil)
+}
+
+func NotFoundResponse(c *gin.Context, message string) {
+	ErrorResponse(c, http.StatusNotFound, message, nil)
+}
+
+func InternalErrorResponse(c *gin.Context, message string, err error) {
+	ErrorResponse(c, http.StatusInternalServerError, message, err)
 }
