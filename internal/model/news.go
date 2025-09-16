@@ -8,25 +8,31 @@ import (
 )
 
 type News struct {
-	ID          uuid.UUID      `json:"id" gorm:"type:char(36);primary_key"`
-	Title       string         `json:"title" gorm:"not null;size:255;index"`
-	Slug        string         `json:"slug" gorm:"unique;not null;size:255;index"`
-	Summary     string         `json:"summary" gorm:"type:text"`
-	Content     string         `json:"content" gorm:"type:longtext"`
-	ImageURL    string         `json:"image_url" gorm:"size:500"`
-	AuthorID    uuid.UUID      `json:"author_id" gorm:"type:char(36);not null;index"`
-	IsPublished bool           `json:"is_published" gorm:"default:false;index"`
-	PublishedAt *time.Time     `json:"published_at"`
-	ViewCount   int            `json:"view_count" gorm:"default:0;index"`
-	Tags        string         `json:"tags" gorm:"size:500"`
-	MetaTitle   string         `json:"meta_title" gorm:"size:255"`
-	MetaDesc    string         `json:"meta_desc" gorm:"size:500"`
-	CreatedAt   time.Time      `json:"created_at" gorm:"autoCreateTime"`
-	UpdatedAt   time.Time      `json:"updated_at" gorm:"autoUpdateTime"`
-	DeletedAt   gorm.DeletedAt `json:"-" gorm:"index"`
+	ID           uuid.UUID      `json:"id" gorm:"type:char(36);primary_key"`
+	Title        string         `json:"title" gorm:"not null;size:255;index"`
+	Slug         string         `json:"slug" gorm:"unique;not null;size:255;index"`
+	Summary      string         `json:"summary" gorm:"type:text"`
+	Content      string         `json:"content" gorm:"type:longtext"`
+	ImageURL     string         `json:"image_url" gorm:"size:500"`
+	AuthorID     uuid.UUID      `json:"author_id" gorm:"type:char(36);not null;index"`
+	CategoryID   *uuid.UUID     `json:"category_id" gorm:"type:char(36);index"` // Liên kết với NewsCategory
+	IsPublished  bool           `json:"is_published" gorm:"default:false;index"`
+	IsFeatured   bool           `json:"is_featured" gorm:"default:false;index"` // Tin nổi bật
+	PublishedAt  *time.Time     `json:"published_at"`
+	ViewCount    int            `json:"view_count" gorm:"default:0;index"`
+	LikeCount    int            `json:"like_count" gorm:"default:0;index"`
+	CommentCount int            `json:"comment_count" gorm:"default:0;index"`
+	MetaTitle    string         `json:"meta_title" gorm:"size:255"`
+	MetaDesc     string         `json:"meta_desc" gorm:"size:500"`
+	CreatedAt    time.Time      `json:"created_at" gorm:"autoCreateTime"`
+	UpdatedAt    time.Time      `json:"updated_at" gorm:"autoUpdateTime"`
+	DeletedAt    gorm.DeletedAt `json:"-" gorm:"index"`
 
 	// Quan hệ
-	Author *User `json:"author,omitempty" gorm:"foreignKey:AuthorID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT"`
+	Author     *User         `json:"author,omitempty" gorm:"foreignKey:AuthorID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT"`
+	Category   *NewsCategory `json:"category,omitempty" gorm:"foreignKey:CategoryID;constraint:OnUpdate:CASCADE,OnDelete:SET NULL"`
+	Tags       []Tag         `json:"tags,omitempty" gorm:"many2many:news_tags;"`
+	Categories []NewsCategory `json:"categories,omitempty" gorm:"many2many:news_category_associations;"` // Đổi tên bảng trung gian
 }
 
 // BeforeCreate hook để tự động tạo UUID cho News
@@ -43,54 +49,66 @@ func (News) TableName() string {
 }
 
 type NewsInput struct {
-	Title       string `json:"title" binding:"required,min=1,max=200"`
-	Slug        string `json:"slug" binding:"required,min=1,max=200"`
-	Summary     string `json:"summary" binding:"max=500"`
-	Content     string `json:"content" binding:"required,min=1"`
-	ImageURL    string `json:"image_url" binding:"max=500"`
-	IsPublished bool   `json:"is_published"`
-	Tags        string `json:"tags" binding:"max=500"`
-	MetaTitle   string `json:"meta_title" binding:"max=200"`
-	MetaDesc    string `json:"meta_description" binding:"max=300"`
+	Title       string      `json:"title" binding:"required,min=1,max=200"`
+	Slug        string      `json:"slug" binding:"required,min=1,max=200"`
+	Summary     string      `json:"summary" binding:"max=500"`
+	Content     string      `json:"content" binding:"required,min=1"`
+	ImageURL    string      `json:"image_url" binding:"max=500"`
+	CategoryID  *uuid.UUID  `json:"category_id"`
+	IsPublished bool        `json:"is_published"`
+	IsFeatured  bool        `json:"is_featured"`
+	TagIDs      []uuid.UUID `json:"tag_ids"` // Danh sách ID tags
+	CategoryIDs []uuid.UUID `json:"category_ids"` // Danh sách ID categories
+	MetaTitle   string      `json:"meta_title" binding:"max=200"`
+	MetaDesc    string      `json:"meta_description" binding:"max=300"`
 }
 
 type NewsResponse struct {
-	ID          uuid.UUID     `json:"id"`
-	Title       string        `json:"title"`
-	Slug        string        `json:"slug"`
-	Summary     string        `json:"summary"`
-	Content     string        `json:"content"`
-	ImageURL    string        `json:"image_url"`
-	AuthorID    uuid.UUID     `json:"author_id"`
-	Author      *UserResponse `json:"author,omitempty"`
-	IsPublished bool          `json:"is_published"`
-	PublishedAt *time.Time    `json:"published_at"`
-	ViewCount   int           `json:"view_count"`
-	Tags        string        `json:"tags"`
-	MetaTitle   string        `json:"meta_title"`
-	MetaDesc    string        `json:"meta_description"`
-	CreatedAt   time.Time     `json:"created_at"`
-	UpdatedAt   time.Time     `json:"updated_at"`
+	ID           uuid.UUID                `json:"id"`
+	Title        string                   `json:"title"`
+	Slug         string                   `json:"slug"`
+	Summary      string                   `json:"summary"`
+	Content      string                   `json:"content"`
+	ImageURL     string                   `json:"image_url"`
+	AuthorID     uuid.UUID                `json:"author_id"`
+	CategoryID   *uuid.UUID               `json:"category_id"`
+	Author       *UserResponse            `json:"author,omitempty"`
+	Category     *NewsCategoryResponse    `json:"category,omitempty"`
+	Categories   []NewsCategoryResponse   `json:"categories,omitempty"`
+	Tags         []TagResponse            `json:"tags,omitempty"`
+	IsPublished  bool                     `json:"is_published"`
+	IsFeatured   bool                     `json://is_featured"`
+	PublishedAt  *time.Time               `json:"published_at"`
+	ViewCount    int                      `json:"view_count"`
+	LikeCount    int                      `json:"like_count"`
+	CommentCount int                      `json:"comment_count"`
+	MetaTitle    string                   `json:"meta_title"`
+	MetaDesc     string                   `json:"meta_description"`
+	CreatedAt    time.Time                `json:"created_at"`
+	UpdatedAt    time.Time                `json:"updated_at"`
 }
 
 // ToResponse chuyển News thành NewsResponse
 func (n *News) ToResponse() NewsResponse {
 	response := NewsResponse{
-		ID:          n.ID,
-		Title:       n.Title,
-		Slug:        n.Slug,
-		Summary:     n.Summary,
-		Content:     n.Content,
-		ImageURL:    n.ImageURL,
-		AuthorID:    n.AuthorID,
-		IsPublished: n.IsPublished,
-		PublishedAt: n.PublishedAt,
-		ViewCount:   n.ViewCount,
-		Tags:        n.Tags,
-		MetaTitle:   n.MetaTitle,
-		MetaDesc:    n.MetaDesc,
-		CreatedAt:   n.CreatedAt,
-		UpdatedAt:   n.UpdatedAt,
+		ID:           n.ID,
+		Title:        n.Title,
+		Slug:         n.Slug,
+		Summary:      n.Summary,
+		Content:      n.Content,
+		ImageURL:     n.ImageURL,
+		AuthorID:     n.AuthorID,
+		CategoryID:   n.CategoryID,
+		IsPublished:  n.IsPublished,
+		IsFeatured:   n.IsFeatured,
+		PublishedAt:  n.PublishedAt,
+		ViewCount:    n.ViewCount,
+		LikeCount:    n.LikeCount,
+		CommentCount: n.CommentCount,
+		MetaTitle:    n.MetaTitle,
+		MetaDesc:     n.MetaDesc,
+		CreatedAt:    n.CreatedAt,
+		UpdatedAt:    n.UpdatedAt,
 	}
 
 	// Bao gồm thông tin tác giả nếu đã được nạp
@@ -99,5 +117,32 @@ func (n *News) ToResponse() NewsResponse {
 		response.Author = &authorResponse
 	}
 
+	// Include main category if loaded
+	if n.Category != nil {
+		categoryResponse := n.Category.ToResponse()
+		response.Category = &categoryResponse
+	}
+
+	// Include categories if loaded
+	if len(n.Categories) > 0 {
+		for _, category := range n.Categories {
+			response.Categories = append(response.Categories, category.ToResponse())
+		}
+	}
+
+	// Include tags if loaded
+	if len(n.Tags) > 0 {
+		for _, tag := range n.Tags {
+			response.Tags = append(response.Tags, tag.ToResponse())
+		}
+	}
+
 	return response
+}
+
+// NewsCategory association table
+type NewsCategoryAssociation struct {
+	NewsID     uuid.UUID `gorm:"type:char(36);primaryKey"`
+	CategoryID uuid.UUID `gorm:"type:char(36);primaryKey"`
+	CreatedAt  time.Time `gorm:"autoCreateTime"`
 }

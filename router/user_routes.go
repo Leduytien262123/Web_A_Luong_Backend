@@ -16,6 +16,9 @@ func SetupUserRoutes(router *gin.Engine) {
 	newsHandler := handle.NewNewsHandler()
 	cartHandler := handle.NewCartHandler()
 	reviewHandler := handle.NewReviewHandler()
+	discountHandler := handle.NewDiscountHandler()
+	tagHandler := handle.NewTagHandler()
+	newsCategoryHandler := handle.NewNewsCategoryHandler()
 
 	// Routes công khai - không cần xác thực
 	public := router.Group("/api")
@@ -50,6 +53,32 @@ func SetupUserRoutes(router *gin.Engine) {
 			publicNews.GET("/", newsHandler.GetNews)
 			publicNews.GET("/:id", newsHandler.GetNewsByID)
 			publicNews.GET("/slug/:slug", newsHandler.GetNewsBySlug)
+		}
+
+		// Danh mục tin tức công khai
+		publicNewsCategories := public.Group("/news-categories")
+		{
+			publicNewsCategories.GET("/", newsCategoryHandler.GetNewsCategories)
+			publicNewsCategories.GET("/tree", newsCategoryHandler.GetNewsCategoryTree)
+			publicNewsCategories.GET("/:id", newsCategoryHandler.GetNewsCategoryByID)
+			publicNewsCategories.GET("/slug/:slug", newsCategoryHandler.GetNewsCategoryBySlug)
+		}
+
+		// Tags công khai
+		publicTags := public.Group("/tags")
+		{
+			publicTags.GET("/", tagHandler.GetTags)
+			publicTags.GET("/popular", tagHandler.GetPopularTags)
+			publicTags.GET("/search", tagHandler.SearchTags)
+			publicTags.GET("/:id", tagHandler.GetTagByID)
+			publicTags.GET("/slug/:slug", tagHandler.GetTagBySlug)
+		}
+
+		 // Mã giảm giá công khai
+		publicDiscounts := public.Group("/discounts")
+		{
+			publicDiscounts.GET("/active", discountHandler.GetDiscounts) // Lấy mã giảm giá đang hoạt động
+			publicDiscounts.POST("/validate", discountHandler.ValidateDiscount) // Kiểm tra mã giảm giá
 		}
 
 		// Đơn hàng công khai (cho khách vãng lai)

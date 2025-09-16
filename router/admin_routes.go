@@ -20,6 +20,8 @@ func SetupAdminRoutes(router *gin.Engine) {
 	newsHandler := handle.NewNewsHandler()
 	discountHandler := handle.NewDiscountHandler()
 	reviewHandler := handle.NewReviewHandler()
+	tagHandler := handle.NewTagHandler()
+	newsCategoryHandler := handle.NewNewsCategoryHandler()
 
 	// Base admin group
 	admin := router.Group("/api/admin")
@@ -50,7 +52,7 @@ func SetupAdminRoutes(router *gin.Engine) {
 		// Thống kê người dùng
 		managerRoutes.GET("/stats/users", adminHandler.GetUserStats)
 
-		// Quản lý danh mục
+		// Quản lý danh mục sản phẩm
 		managerRoutes.GET("/categories", categoryHandler.GetCategories) 
 		managerRoutes.GET("/category/:id", categoryHandler.GetCategoryByID)
 		managerRoutes.POST("/category", categoryHandler.CreateCategory)
@@ -67,19 +69,19 @@ func SetupAdminRoutes(router *gin.Engine) {
 
 		// Quản lý đơn hàng
 		managerRoutes.GET("/orders", orderHandler.GetOrders)
-		managerRoutes.POST("/orders", orderHandler.CreateOrder)
-		managerRoutes.GET("/orders/stats", orderHandler.GetOrderStats)
-		managerRoutes.GET("/orders/guest-stats", orderHandler.GetGuestOrderStats)
-		managerRoutes.GET("/orders/:id", orderHandler.GetOrderByID)
-		managerRoutes.PUT("/orders/:id/status", orderHandler.UpdateOrderStatus)
-		managerRoutes.PUT("/orders/:id/payment", orderHandler.UpdatePaymentStatus)
+		managerRoutes.POST("/order", orderHandler.CreateOrder)
+		managerRoutes.GET("/order/stats", orderHandler.GetOrderStats)
+		managerRoutes.GET("/order/guest-stats", orderHandler.GetGuestOrderStats)
+		managerRoutes.GET("/order/:id", orderHandler.GetOrderByID)
+		managerRoutes.PUT("/order/:id/status", orderHandler.UpdateOrderStatus)
+		managerRoutes.PUT("/order/:id/payment", orderHandler.UpdatePaymentStatus)
 
-		// Quản lý thẻ giảm giá
+		// Quản lý mã giảm giá
 		managerRoutes.GET("/discounts", discountHandler.GetDiscounts)
-		managerRoutes.GET("/discounts/:code", discountHandler.GetDiscountByCode)
-		managerRoutes.POST("/discounts", discountHandler.CreateDiscount)
-		managerRoutes.PUT("/discounts/:id", discountHandler.UpdateDiscount)
-		managerRoutes.DELETE("/discounts/:id", discountHandler.DeleteDiscount)
+		managerRoutes.GET("/discount/:code", discountHandler.GetDiscountByCode)
+		managerRoutes.POST("/discount", discountHandler.CreateDiscount)
+		managerRoutes.PUT("/discount/:id", discountHandler.UpdateDiscount)
+		managerRoutes.DELETE("/discount/:id", discountHandler.DeleteDiscount)
 
 		// Quản lý tin tức
 		managerRoutes.GET("/news", newsHandler.GetNews)
@@ -88,7 +90,25 @@ func SetupAdminRoutes(router *gin.Engine) {
 		managerRoutes.PUT("/new/:id", newsHandler.UpdateNews)
 		managerRoutes.DELETE("/new/:id", newsHandler.DeleteNews)
 
+		// Quản lý danh mục tin tức
+		managerRoutes.GET("/news-categories", newsCategoryHandler.GetNewsCategories)
+		managerRoutes.GET("/new-category/tree", newsCategoryHandler.GetNewsCategoryTree)
+		managerRoutes.GET("/new-category/:id", newsCategoryHandler.GetNewsCategoryByID)
+		managerRoutes.POST("/new-category", newsCategoryHandler.CreateNewsCategory)
+		managerRoutes.PUT("/new-category/:id", newsCategoryHandler.UpdateNewsCategory)
+		managerRoutes.DELETE("/new-category/:id", newsCategoryHandler.DeleteNewsCategory)
+
+		// Quản lý tags
+		managerRoutes.GET("/tags", tagHandler.GetTags)
+		managerRoutes.GET("/tag/search", tagHandler.SearchTags)
+		managerRoutes.GET("/tag/:id", tagHandler.GetTagByID)
+		managerRoutes.POST("/tag", tagHandler.CreateTag)
+		managerRoutes.PUT("/tag/:id", tagHandler.UpdateTag)
+		managerRoutes.DELETE("/tag/:id", tagHandler.DeleteTag)
+
 		// Quản lý đánh giá
-		managerRoutes.PUT("/reviews/:id/toggle", reviewHandler.AdminToggleReviewStatus)
+		managerRoutes.GET("/reviews/latest", reviewHandler.GetLatestReviews)
+		managerRoutes.GET("/review/product/:product_id", reviewHandler.GetReviewsByProduct)
+		managerRoutes.PUT("/review/:id/toggle", reviewHandler.AdminToggleReviewStatus)
 	}
 }

@@ -96,9 +96,14 @@ func runMigrations() error {
 		&model.CartItem{},
 		&model.Order{},
 		&model.OrderItem{},
-		&model.Coupon{},
+		&model.Discount{}, // Sửa từ Discounts thành Discount
 		&model.Address{},
 		&model.News{},
+		&model.NewsCategory{}, // Thêm NewsCategory
+		&model.Tag{}, // Thêm Tag
+		&model.ProductTag{}, // Thêm bảng trung gian
+		&model.NewsTag{}, // Thêm bảng trung gian
+		&model.NewsCategoryAssociation{}, // Thêm bảng trung gian
 	)
 	
 	return err

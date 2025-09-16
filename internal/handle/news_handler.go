@@ -13,16 +13,20 @@ import (
 )
 
 type NewsHandler struct {
-	newsRepo *repo.NewsRepo
+	newsRepo         *repo.NewsRepo
+	newsCategoryRepo *repo.NewsCategoryRepo
+	tagRepo          *repo.TagRepo
 }
 
 func NewNewsHandler() *NewsHandler {
 	return &NewsHandler{
-		newsRepo: repo.NewNewsRepo(),
+		newsRepo:         repo.NewNewsRepo(),
+		newsCategoryRepo: repo.NewNewsCategoryRepo(),
+		tagRepo:          repo.NewTagRepo(),
 	}
 }
 
-// CreateNews creates a new news article
+// CreateNews creates a new news article with tags and categories
 func (h *NewsHandler) CreateNews(c *gin.Context) {
 	userID, exists := c.Get("user_id")
 	if !exists {
@@ -47,15 +51,16 @@ func (h *NewsHandler) CreateNews(c *gin.Context) {
 		return
 	}
 
-	news := model.News{
+	news := &model.News{
 		Title:       input.Title,
 		Slug:        input.Slug,
 		Summary:     input.Summary,
 		Content:     input.Content,
 		ImageURL:    input.ImageURL,
 		AuthorID:    userID.(uuid.UUID),
+		CategoryID:  input.CategoryID,
 		IsPublished: input.IsPublished,
-		Tags:        input.Tags,
+		IsFeatured:  input.IsFeatured,
 		MetaTitle:   input.MetaTitle,
 		MetaDesc:    input.MetaDesc,
 	}
@@ -65,67 +70,85 @@ func (h *NewsHandler) CreateNews(c *gin.Context) {
 		news.PublishedAt = &now
 	}
 
-	if err := h.newsRepo.Create(&news); err != nil {
+	// Create news with associations
+	if err := h.newsRepo.CreateWithAssociations(news, input.TagIDs, input.CategoryIDs); err != nil {
 		helpers.ErrorResponse(c, http.StatusInternalServerError, "Failed to create news", err)
 		return
 	}
 
-	// Load created news with author
+	// Load created news with relationships
 	createdNews, err := h.newsRepo.GetByID(news.ID)
 	if err != nil {
 		helpers.ErrorResponse(c, http.StatusInternalServerError, "Failed to load created news", err)
 		return
 	}
 
-	c.JSON(http.StatusCreated, helpers.Response{
-		Success: true,
-		Message: "News created successfully",
-		Data:    createdNews.ToResponse(),
-	})
+	helpers.SuccessResponse(c, "News created successfully", createdNews.ToResponse())
 }
 
-// GetNews retrieves news with pagination
+// GetNews retrieves news with pagination and filters
 func (h *NewsHandler) GetNews(c *gin.Context) {
-	pageStr := c.DefaultQuery("page", "1")
-	limitStr := c.DefaultQuery("limit", "10")
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
 	publishedOnly := c.Query("published") == "true"
+	categoryID := c.Query("category_id")
+	tagID := c.Query("tag_id")
 
-	page, err := strconv.Atoi(pageStr)
-	if err != nil || page < 1 {
+	if page < 1 {
 		page = 1
 	}
-
-	limit, err := strconv.Atoi(limitStr)
-	if err != nil || limit < 1 || limit > 50 {
+	if limit < 1 || limit > 50 {
 		limit = 10
 	}
 
-	news, total, err := h.newsRepo.GetAll(page, limit, publishedOnly)
+	var news []model.News
+	var total int64
+	var err error
+
+	// Filter by category
+	if categoryID != "" {
+		if catID, parseErr := uuid.Parse(categoryID); parseErr == nil {
+			news, total, err = h.newsRepo.GetByCategory(catID, page, limit)
+		} else {
+			helpers.ErrorResponse(c, http.StatusBadRequest, "Invalid category ID", parseErr)
+			return
+		}
+	} else if tagID != "" {
+		// Filter by tag
+		if tID, parseErr := uuid.Parse(tagID); parseErr == nil {
+			news, total, err = h.newsRepo.GetByTag(tID, page, limit)
+		} else {
+			helpers.ErrorResponse(c, http.StatusBadRequest, "Invalid tag ID", parseErr)
+			return
+		}
+	} else {
+		// Get all news
+		news, total, err = h.newsRepo.GetAll(page, limit, publishedOnly)
+	}
+
 	if err != nil {
 		helpers.ErrorResponse(c, http.StatusInternalServerError, "Failed to retrieve news", err)
 		return
 	}
 
-	var response []model.NewsResponse
+	var responses []model.NewsResponse
 	for _, article := range news {
-		response = append(response, article.ToResponse())
+		responses = append(responses, article.ToResponse())
 	}
 
 	totalPages := (total + int64(limit) - 1) / int64(limit)
 
-	c.JSON(http.StatusOK, helpers.Response{
-		Success: true,
-		Message: "News retrieved successfully",
-		Data: map[string]interface{}{
-			"news":        response,
-			"total":       total,
-			"page":        page,
-			"limit":       limit,
-			"total_pages": totalPages,
-			"has_next":    page < int(totalPages),
-			"has_prev":    page > 1,
-		},
-	})
+	response := map[string]interface{}{
+		"news":        responses,
+		"total":       total,
+		"page":        page,
+		"limit":       limit,
+		"total_pages": totalPages,
+		"has_next":    page < int(totalPages),
+		"has_prev":    page > 1,
+	}
+
+	helpers.SuccessResponse(c, "News retrieved successfully", response)
 }
 
 // GetNewsByID retrieves a news article by ID
@@ -150,11 +173,7 @@ func (h *NewsHandler) GetNewsByID(c *gin.Context) {
 	// Increment view count
 	h.newsRepo.IncrementViewCount(id)
 
-	c.JSON(http.StatusOK, helpers.Response{
-		Success: true,
-		Message: "News retrieved successfully",
-		Data:    news.ToResponse(),
-	})
+	helpers.SuccessResponse(c, "News retrieved successfully", news.ToResponse())
 }
 
 // GetNewsBySlug retrieves a news article by slug
@@ -178,14 +197,10 @@ func (h *NewsHandler) GetNewsBySlug(c *gin.Context) {
 	// Increment view count
 	h.newsRepo.IncrementViewCount(news.ID)
 
-	c.JSON(http.StatusOK, helpers.Response{
-		Success: true,
-		Message: "News retrieved successfully",
-		Data:    news.ToResponse(),
-	})
+	helpers.SuccessResponse(c, "News retrieved successfully", news.ToResponse())
 }
 
-// UpdateNews updates a news article
+// UpdateNews updates a news article with tags and categories
 func (h *NewsHandler) UpdateNews(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := uuid.Parse(idStr)
@@ -212,24 +227,27 @@ func (h *NewsHandler) UpdateNews(c *gin.Context) {
 	}
 
 	// Check if slug already exists (excluding current news)
-	exists, err := h.newsRepo.CheckSlugExists(input.Slug, id)
-	if err != nil {
-		helpers.ErrorResponse(c, http.StatusInternalServerError, "Database error", err)
-		return
-	}
-	if exists {
-		helpers.ErrorResponse(c, http.StatusConflict, "Slug already exists", nil)
-		return
+	if input.Slug != news.Slug {
+		exists, err := h.newsRepo.CheckSlugExists(input.Slug, id)
+		if err != nil {
+			helpers.ErrorResponse(c, http.StatusInternalServerError, "Database error", err)
+			return
+		}
+		if exists {
+			helpers.ErrorResponse(c, http.StatusConflict, "Slug already exists", nil)
+			return
+		}
 	}
 
-	// Update news
+	// Update news fields
 	news.Title = input.Title
 	news.Slug = input.Slug
 	news.Summary = input.Summary
 	news.Content = input.Content
 	news.ImageURL = input.ImageURL
+	news.CategoryID = input.CategoryID
 	news.IsPublished = input.IsPublished
-	news.Tags = input.Tags
+	news.IsFeatured = input.IsFeatured
 	news.MetaTitle = input.MetaTitle
 	news.MetaDesc = input.MetaDesc
 
@@ -238,23 +256,20 @@ func (h *NewsHandler) UpdateNews(c *gin.Context) {
 		news.PublishedAt = &now
 	}
 
-	if err := h.newsRepo.Update(news); err != nil {
+	// Update with associations
+	if err := h.newsRepo.UpdateWithAssociations(news, input.TagIDs, input.CategoryIDs); err != nil {
 		helpers.ErrorResponse(c, http.StatusInternalServerError, "Failed to update news", err)
 		return
 	}
 
-	// Load updated news with author
+	// Load updated news with relationships
 	updatedNews, err := h.newsRepo.GetByID(news.ID)
 	if err != nil {
 		helpers.ErrorResponse(c, http.StatusInternalServerError, "Failed to load updated news", err)
 		return
 	}
 
-	c.JSON(http.StatusOK, helpers.Response{
-		Success: true,
-		Message: "News updated successfully",
-		Data:    updatedNews.ToResponse(),
-	})
+	helpers.SuccessResponse(c, "News updated successfully", updatedNews.ToResponse())
 }
 
 // DeleteNews deletes a news article
@@ -282,9 +297,104 @@ func (h *NewsHandler) DeleteNews(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, helpers.Response{
-		Success: true,
-		Message: "News deleted successfully",
-		Data:    nil,
-	})
+	helpers.SuccessResponse(c, "News deleted successfully", nil)
+}
+
+// GetFeaturedNews lấy tin tức nổi bật
+func (h *NewsHandler) GetFeaturedNews(c *gin.Context) {
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "5"))
+
+	news, err := h.newsRepo.GetFeaturedNews(limit)
+	if err != nil {
+		helpers.ErrorResponse(c, http.StatusInternalServerError, "Failed to get featured news", err)
+		return
+	}
+
+	var responses []model.NewsResponse
+	for _, article := range news {
+		responses = append(responses, article.ToResponse())
+	}
+
+	helpers.SuccessResponse(c, "Featured news retrieved successfully", responses)
+}
+
+// GetLatestNews lấy tin tức mới nhất
+func (h *NewsHandler) GetLatestNews(c *gin.Context) {
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
+
+	news, err := h.newsRepo.GetLatestNews(limit)
+	if err != nil {
+		helpers.ErrorResponse(c, http.StatusInternalServerError, "Failed to get latest news", err)
+		return
+	}
+
+	var responses []model.NewsResponse
+	for _, article := range news {
+		responses = append(responses, article.ToResponse())
+	}
+
+	helpers.SuccessResponse(c, "Latest news retrieved successfully", responses)
+}
+
+// GetPopularNews lấy tin tức phổ biến
+func (h *NewsHandler) GetPopularNews(c *gin.Context) {
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
+
+	news, err := h.newsRepo.GetPopularNews(limit)
+	if err != nil {
+		helpers.ErrorResponse(c, http.StatusInternalServerError, "Failed to get popular news", err)
+		return
+	}
+
+	var responses []model.NewsResponse
+	for _, article := range news {
+		responses = append(responses, article.ToResponse())
+	}
+
+	helpers.SuccessResponse(c, "Popular news retrieved successfully", responses)
+}
+
+// SearchNews tìm kiếm tin tức
+func (h *NewsHandler) SearchNews(c *gin.Context) {
+	keyword := c.Query("q")
+	if keyword == "" {
+		helpers.ErrorResponse(c, http.StatusBadRequest, "Search keyword is required", nil)
+		return
+	}
+
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
+
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 || limit > 50 {
+		limit = 10
+	}
+
+	news, total, err := h.newsRepo.SearchNews(keyword, page, limit)
+	if err != nil {
+		helpers.ErrorResponse(c, http.StatusInternalServerError, "Failed to search news", err)
+		return
+	}
+
+	var responses []model.NewsResponse
+	for _, article := range news {
+		responses = append(responses, article.ToResponse())
+	}
+
+	totalPages := (total + int64(limit) - 1) / int64(limit)
+
+	response := map[string]interface{}{
+		"news":        responses,
+		"keyword":     keyword,
+		"total":       total,
+		"page":        page,
+		"limit":       limit,
+		"total_pages": totalPages,
+		"has_next":    page < int(totalPages),
+		"has_prev":    page > 1,
+	}
+
+	helpers.SuccessResponse(c, "News search completed successfully", response)
 }
