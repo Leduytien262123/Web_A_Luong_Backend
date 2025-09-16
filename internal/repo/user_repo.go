@@ -60,6 +60,28 @@ func (r *UserRepository) GetAllUsers() ([]model.User, error) {
 	return users, err
 }
 
+// GetAllUsersWithPagination lấy tất cả người dùng có phân trang
+func (r *UserRepository) GetAllUsersWithPagination(page, limit int) ([]model.User, int64, error) {
+	var users []model.User
+	var total int64
+
+	// Đếm tổng số bản ghi
+	if err := r.db.Model(&model.User{}).Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	// Tính offset
+	offset := (page - 1) * limit
+
+	// Lấy danh sách người dùng
+	err := r.db.Order("created_at DESC").
+		Offset(offset).
+		Limit(limit).
+		Find(&users).Error
+
+	return users, total, err
+}
+
 func (r *UserRepository) IsUsernameExists(username string) bool {
 	var count int64
 	r.db.Model(&model.User{}).Where("username = ?", username).Count(&count)

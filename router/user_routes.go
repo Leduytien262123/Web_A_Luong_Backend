@@ -15,6 +15,7 @@ func SetupUserRoutes(router *gin.Engine) {
 	orderHandler := handle.NewOrderHandler()
 	newsHandler := handle.NewNewsHandler()
 	cartHandler := handle.NewCartHandler()
+	reviewHandler := handle.NewReviewHandler()
 
 	// Routes công khai - không cần xác thực
 	public := router.Group("/api")
@@ -33,6 +34,14 @@ func SetupUserRoutes(router *gin.Engine) {
 			publicProducts.GET("/", productHandler.GetProducts)
 			publicProducts.GET("/:id", productHandler.GetProductByID)
 			publicProducts.GET("/sku/:sku", productHandler.GetProductBySKU)
+		}
+
+		// Đánh giá công khai
+		publicReviews := public.Group("/reviews")
+		{
+			publicReviews.GET("/product/:product_id", reviewHandler.GetReviewsByProduct)
+			publicReviews.GET("/product/:product_id/stats", reviewHandler.GetProductRatingStats)
+			publicReviews.GET("/latest", reviewHandler.GetLatestReviews)
 		}
 
 		// Tin tức công khai
@@ -77,6 +86,15 @@ func SetupUserRoutes(router *gin.Engine) {
 		userOrders := protected.Group("/orders")
 		{
 			userOrders.GET("/my", orderHandler.GetMyOrders)
+		}
+
+		// Đánh giá của người dùng
+		userReviews := protected.Group("/reviews")
+		{
+			userReviews.POST("/", reviewHandler.CreateReview)
+			userReviews.GET("/my", reviewHandler.GetReviewsByUser)
+			userReviews.PUT("/:id", reviewHandler.UpdateReview)
+			userReviews.DELETE("/:id", reviewHandler.DeleteReview)
 		}
 	}
 }

@@ -57,11 +57,56 @@ func (r *CategoryRepo) GetAll() ([]model.Category, error) {
 	return categories, err
 }
 
+// GetAllWithPagination lấy tất cả danh mục có phân trang
+func (r *CategoryRepo) GetAllWithPagination(page, limit int) ([]model.Category, int64, error) {
+	var categories []model.Category
+	var total int64
+
+	// Đếm tổng số bản ghi
+	if err := r.db.Model(&model.Category{}).Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	// Tính offset
+	offset := (page - 1) * limit
+
+	// Lấy danh sách danh mục
+	err := r.db.Order("created_at DESC").
+		Offset(offset).
+		Limit(limit).
+		Find(&categories).Error
+
+	return categories, total, err
+}
+
 // GetAllWithProducts lấy tất cả danh mục kèm theo danh sách sản phẩm
 func (r *CategoryRepo) GetAllWithProducts() ([]model.Category, error) {
 	var categories []model.Category
 	err := r.db.Preload("Products").Find(&categories).Error
 	return categories, err
+}
+
+// GetAllWithProductsAndPagination lấy tất cả danh mục kèm theo danh sách sản phẩm có phân trang
+func (r *CategoryRepo) GetAllWithProductsAndPagination(page, limit int) ([]model.Category, int64, error) {
+	var categories []model.Category
+	var total int64
+
+	// Đếm tổng số bản ghi
+	if err := r.db.Model(&model.Category{}).Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	// Tính offset
+	offset := (page - 1) * limit
+
+	// Lấy danh sách danh mục kèm sản phẩm
+	err := r.db.Preload("Products").
+		Order("created_at DESC").
+		Offset(offset).
+		Limit(limit).
+		Find(&categories).Error
+
+	return categories, total, err
 }
 
 // Update cập nhật danh mục

@@ -6,6 +6,7 @@ import (
 	"backend/internal/repo"
 	"errors"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -65,15 +66,18 @@ func (h *CategoryHandler) CreateCategory(c *gin.Context) {
 
 // GetCategories lấy tất cả danh mục
 func (h *CategoryHandler) GetCategories(c *gin.Context) {
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
 	withProducts := c.Query("with_products") == "true"
 
 	var categories []model.Category
+	var total int64
 	var err error
 
 	if withProducts {
-		categories, err = h.categoryRepo.GetAllWithProducts()
+		categories, total, err = h.categoryRepo.GetAllWithProductsAndPagination(page, limit)
 	} else {
-		categories, err = h.categoryRepo.GetAll()
+		categories, total, err = h.categoryRepo.GetAllWithPagination(page, limit)
 	}
 
 	if err != nil {
@@ -86,10 +90,19 @@ func (h *CategoryHandler) GetCategories(c *gin.Context) {
 		response = append(response, category.ToResponse())
 	}
 
+	result := map[string]interface{}{
+		"categories": response,
+		"pagination": map[string]interface{}{
+			"page":  page,
+			"limit": limit,
+			"total": total,
+		},
+	}
+
 	c.JSON(http.StatusOK, helpers.Response{
 		Success: true,
 		Message: "Lấy danh sách danh mục thành công",
-		Data:    response,
+		Data:    result,
 	})
 }
 

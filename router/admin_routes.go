@@ -18,6 +18,8 @@ func SetupAdminRoutes(router *gin.Engine) {
 	productHandler := handle.NewProductHandler()
 	orderHandler := handle.NewOrderHandler()
 	newsHandler := handle.NewNewsHandler()
+	discountHandler := handle.NewDiscountHandler()
+	reviewHandler := handle.NewReviewHandler()
 
 	// Base admin group
 	admin := router.Group("/api/admin")
@@ -71,11 +73,21 @@ func SetupAdminRoutes(router *gin.Engine) {
 		managerRoutes.PUT("/orders/:id/status", orderHandler.UpdateOrderStatus)
 		managerRoutes.PUT("/orders/:id/payment", orderHandler.UpdatePaymentStatus)
 
+		// Quản lý thẻ giảm giá
+		managerRoutes.GET("/discounts", discountHandler.GetDiscounts)
+		managerRoutes.GET("/discounts/:code", discountHandler.GetDiscountByCode)
+		managerRoutes.POST("/discounts", discountHandler.CreateDiscount)
+		managerRoutes.PUT("/discounts/:id", discountHandler.UpdateDiscount)
+		managerRoutes.DELETE("/discounts/:id", discountHandler.DeleteDiscount)
+
 		// Quản lý tin tức
 		managerRoutes.GET("/news", newsHandler.GetNews)
 		managerRoutes.GET("/new/:id", newsHandler.GetNewsByID)
 		managerRoutes.POST("/new", newsHandler.CreateNews)
 		managerRoutes.PUT("/new/:id", newsHandler.UpdateNews)
 		managerRoutes.DELETE("/new/:id", newsHandler.DeleteNews)
+
+		// Quản lý đánh giá
+		managerRoutes.PUT("/reviews/:id/toggle", reviewHandler.AdminToggleReviewStatus)
 	}
 }

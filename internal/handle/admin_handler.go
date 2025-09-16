@@ -23,7 +23,10 @@ func NewAdminHandler(userRepo *repo.UserRepository) *AdminHandler {
 }
 
 func (h *AdminHandler) GetAllUsers(c *gin.Context) {
-	users, err := h.userRepo.GetAllUsers()
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
+
+	users, total, err := h.userRepo.GetAllUsersWithPagination(page, limit)
 	if err != nil {
 		helpers.ErrorResponse(c, http.StatusInternalServerError, consts.MSG_INTERNAL_ERROR, err)
 		return
@@ -34,7 +37,16 @@ func (h *AdminHandler) GetAllUsers(c *gin.Context) {
 		response = append(response, user.ToResponse())
 	}
 
-	helpers.SuccessResponse(c, consts.MSG_SUCCESS, response)
+	result := map[string]interface{}{
+		"users": response,
+		"pagination": map[string]interface{}{
+			"page":  page,
+			"limit": limit,
+			"total": total,
+		},
+	}
+
+	helpers.SuccessResponse(c, consts.MSG_SUCCESS, result)
 }
 
 func (h *AdminHandler) GetUserByID(c *gin.Context) {
