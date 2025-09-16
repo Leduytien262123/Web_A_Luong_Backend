@@ -52,10 +52,10 @@ func SetupAdminRoutes(router *gin.Engine) {
 
 		// Quản lý danh mục
 		managerRoutes.GET("/categories", categoryHandler.GetCategories) 
-		managerRoutes.GET("/categories/:id", categoryHandler.GetCategoryByID)
-		managerRoutes.POST("/categories", categoryHandler.CreateCategory)
-		managerRoutes.PUT("/categories/:id", categoryHandler.UpdateCategory)
-		managerRoutes.DELETE("/categories/:id", categoryHandler.DeleteCategory)
+		managerRoutes.GET("/category/:id", categoryHandler.GetCategoryByID)
+		managerRoutes.POST("/category", categoryHandler.CreateCategory)
+		managerRoutes.PUT("/category/:id", categoryHandler.UpdateCategory)
+		managerRoutes.DELETE("/category/:id", categoryHandler.DeleteCategory)
 
 		// Quản lý sản phẩm
 		managerRoutes.GET("/products", productHandler.GetProducts)
@@ -67,6 +67,7 @@ func SetupAdminRoutes(router *gin.Engine) {
 
 		// Quản lý đơn hàng
 		managerRoutes.GET("/orders", orderHandler.GetOrders)
+		managerRoutes.POST("/orders", orderHandler.CreateOrder)
 		managerRoutes.GET("/orders/stats", orderHandler.GetOrderStats)
 		managerRoutes.GET("/orders/guest-stats", orderHandler.GetGuestOrderStats)
 		managerRoutes.GET("/orders/:id", orderHandler.GetOrderByID)
