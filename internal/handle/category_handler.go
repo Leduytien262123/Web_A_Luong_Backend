@@ -50,6 +50,15 @@ func (h *CategoryHandler) CreateCategory(c *gin.Context) {
 		Description: input.Description,
 		Slug:        input.Slug,
 		IsActive:    true,
+		ShowOnMenu:  false,
+		ShowOnHome:  false,
+		ShowOnFooter: false,
+		Metadata: func() model.CategoryMetadata {
+			if input.Metadata != nil {
+				return *input.Metadata
+			}
+			return model.CategoryMetadata{}
+		}(),
 	}
 
 	if err := h.categoryRepo.Create(&category); err != nil {
@@ -203,6 +212,18 @@ func (h *CategoryHandler) UpdateCategory(c *gin.Context) {
 	category.Slug = input.Slug
 	if input.IsActive != nil {
 		category.IsActive = *input.IsActive
+	}
+	if input.ShowOnMenu != nil {
+		category.ShowOnMenu = *input.ShowOnMenu
+	}
+	if input.ShowOnHome != nil {
+		category.ShowOnHome = *input.ShowOnHome
+	}
+	if input.ShowOnFooter != nil {
+		category.ShowOnFooter = *input.ShowOnFooter
+	}
+	if input.Metadata != nil {
+		category.Metadata = *input.Metadata
 	}
 
 	if err := h.categoryRepo.Update(category); err != nil {
