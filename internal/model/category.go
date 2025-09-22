@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
 
@@ -13,10 +14,10 @@ type Category struct {
 	Description string         `json:"description" gorm:"type:text"`
 	Slug        string         `json:"slug" gorm:"unique;not null;size:255;index"`
 	IsActive    bool           `json:"is_active" gorm:"default:true;index"`
-	ShowOnMenu  bool           `json:"show_on_menu" gorm:"default:false"`
-	ShowOnHome  bool           `json:"show_on_home" gorm:"default:false"`
-	ShowOnFooter bool         `json:"show_on_footer" gorm:"default:false"`
-	Metadata    CategoryMetadata `json:"metadata" gorm:"type:json"`
+	ShowOnMenu  bool           `json:"show_menu" gorm:"default:false"`
+	ShowOnHome  bool           `json:"show_home" gorm:"default:false"`
+	ShowOnFooter bool         `json:"show_footer" gorm:"default:false"`
+	Metadata    datatypes.JSON `json:"metadata" gorm:"type:json"`
 	CreatedAt   time.Time      `json:"created_at" gorm:"autoCreateTime"`
 	UpdatedAt   time.Time      `json:"updated_at" gorm:"autoUpdateTime"`
 	DeletedAt   gorm.DeletedAt `json:"-" gorm:"index"`
@@ -55,9 +56,9 @@ type CategoryInput struct {
 	Description string `json:"description" binding:"max=500"`
 	Slug        string `json:"slug" binding:"required,min=1,max=100"`
 	IsActive    *bool  `json:"is_active,omitempty"`
-	ShowOnMenu  *bool  `json:"show_on_menu,omitempty"`
-	ShowOnHome  *bool  `json:"show_on_home,omitempty"`
-	ShowOnFooter *bool  `json:"show_on_footer,omitempty"`
+	ShowOnMenu  *bool  `json:"show_menu,omitempty"`
+	ShowOnHome  *bool  `json:"show_home,omitempty"`
+	ShowOnFooter *bool  `json:"show_footer,omitempty"`
 	Metadata    *CategoryMetadata `json:"metadata,omitempty"`
 }
 
@@ -67,10 +68,10 @@ type CategoryResponse struct {
 	Description string    `json:"description"`
 	Slug        string    `json:"slug"`
 	IsActive    bool      `json:"is_active"`
-	ShowOnMenu  bool      `json:"show_on_menu"`
-	ShowOnHome  bool      `json:"show_on_home"`
-	ShowOnFooter bool     `json:"show_on_footer"`
-	Metadata    CategoryMetadata `json:"metadata"`
+	ShowOnMenu  bool      `json:"show_menu"`
+	ShowOnHome  bool      `json:"show_home"`
+	ShowOnFooter bool     `json:"show_footer"`
+	Metadata    datatypes.JSON `json:"metadata"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
 }

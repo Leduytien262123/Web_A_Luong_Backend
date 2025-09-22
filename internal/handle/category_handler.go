@@ -4,6 +4,7 @@ import (
 	"backend/internal/helpers"
 	"backend/internal/model"
 	"backend/internal/repo"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"strconv"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"gorm.io/datatypes"
 )
 
 type CategoryHandler struct {
@@ -45,6 +47,15 @@ func (h *CategoryHandler) CreateCategory(c *gin.Context) {
 		return
 	}
 
+       // Tạo metadata mặc định
+       defaultMetadata := model.CategoryMetadata{
+	       MetaTitle:       "",
+	       MetaDescription: "",
+	       MetaImage:       model.MetaImage{URL: "", Alt: ""},
+	       MetaKeywords:    "",
+       }
+       metadataJSON, _ := json.Marshal(defaultMetadata)
+
        category := model.Category{
 	       Name:        input.Name,
 	       Description: input.Description,
@@ -53,12 +64,7 @@ func (h *CategoryHandler) CreateCategory(c *gin.Context) {
 	       ShowOnMenu:  false,
 	       ShowOnHome:  false,
 	       ShowOnFooter: false,
-	       Metadata: model.CategoryMetadata{
-		       MetaTitle:       "",
-		       MetaDescription: "",
-		       MetaImage:       model.MetaImage{URL: "", Alt: ""},
-		       MetaKeywords:    "",
-	       },
+	       Metadata:    datatypes.JSON(metadataJSON),
        }
 
        if input.IsActive != nil {
@@ -74,14 +80,8 @@ func (h *CategoryHandler) CreateCategory(c *gin.Context) {
 	       category.ShowOnFooter = *input.ShowOnFooter
        }
        if input.Metadata != nil {
-	       // Chỉ lấy url và alt cho meta_image
-	       category.Metadata.MetaTitle = input.Metadata.MetaTitle
-	       category.Metadata.MetaDescription = input.Metadata.MetaDescription
-	       category.Metadata.MetaKeywords = input.Metadata.MetaKeywords
-	       if input.Metadata.MetaImage.URL != "" || input.Metadata.MetaImage.Alt != "" {
-		       category.Metadata.MetaImage.URL = input.Metadata.MetaImage.URL
-		       category.Metadata.MetaImage.Alt = input.Metadata.MetaImage.Alt
-	       }
+	       metadataJSON, _ := json.Marshal(input.Metadata)
+	       category.Metadata = datatypes.JSON(metadataJSON)
        }
 
 	if err := h.categoryRepo.Create(&category); err != nil {
@@ -246,7 +246,8 @@ func (h *CategoryHandler) UpdateCategory(c *gin.Context) {
 		category.ShowOnFooter = *input.ShowOnFooter
 	}
 	if input.Metadata != nil {
-		category.Metadata = *input.Metadata
+		metadataJSON, _ := json.Marshal(input.Metadata)
+		category.Metadata = datatypes.JSON(metadataJSON)
 	}
 
 	if err := h.categoryRepo.Update(category); err != nil {
