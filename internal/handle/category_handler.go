@@ -47,42 +47,42 @@ func (h *CategoryHandler) CreateCategory(c *gin.Context) {
 		return
 	}
 
-       // Tạo metadata mặc định
-       defaultMetadata := model.CategoryMetadata{
-	       MetaTitle:       "",
-	       MetaDescription: "",
-	       MetaImage:       model.MetaImage{URL: "", Alt: ""},
-	       MetaKeywords:    "",
-       }
-       metadataJSON, _ := json.Marshal(defaultMetadata)
+	// Tạo metadata mặc định
+	defaultMetadata := model.CategoryMetadata{
+		MetaTitle:       "",
+		MetaDescription: "",
+		MetaImage:       model.MetaImage{URL: "", Alt: ""},
+		MetaKeywords:    "",
+	}
+	metadataJSON, _ := json.Marshal(defaultMetadata)
 
-       category := model.Category{
-	       Name:        input.Name,
-	       Description: input.Description,
-	       Slug:        input.Slug,
-	       IsActive:    false,
-	       ShowOnMenu:  false,
-	       ShowOnHome:  false,
-	       ShowOnFooter: false,
-	       Metadata:    datatypes.JSON(metadataJSON),
-       }
+	category := model.Category{
+		Name:         input.Name,
+		Description:  input.Description,
+		Slug:         input.Slug,
+		IsActive:     false,
+		ShowOnMenu:   false,
+		ShowOnHome:   false,
+		ShowOnFooter: false,
+		Metadata:     datatypes.JSON(metadataJSON),
+	}
 
-       if input.IsActive != nil {
-	       category.IsActive = *input.IsActive
-       }
-       if input.ShowOnMenu != nil {
-	       category.ShowOnMenu = *input.ShowOnMenu
-       }
-       if input.ShowOnHome != nil {
-	       category.ShowOnHome = *input.ShowOnHome
-       }
-       if input.ShowOnFooter != nil {
-	       category.ShowOnFooter = *input.ShowOnFooter
-       }
-       if input.Metadata != nil {
-	       metadataJSON, _ := json.Marshal(input.Metadata)
-	       category.Metadata = datatypes.JSON(metadataJSON)
-       }
+	if input.IsActive != nil {
+		category.IsActive = *input.IsActive
+	}
+	if input.ShowOnMenu != nil {
+		category.ShowOnMenu = *input.ShowOnMenu
+	}
+	if input.ShowOnHome != nil {
+		category.ShowOnHome = *input.ShowOnHome
+	}
+	if input.ShowOnFooter != nil {
+		category.ShowOnFooter = *input.ShowOnFooter
+	}
+	if input.Metadata != nil {
+		metadataJSON, _ := json.Marshal(input.Metadata)
+		category.Metadata = datatypes.JSON(metadataJSON)
+	}
 
 	if err := h.categoryRepo.Create(&category); err != nil {
 		helpers.ErrorResponse(c, http.StatusInternalServerError, "Không thể tạo danh mục", err)
@@ -106,10 +106,16 @@ func (h *CategoryHandler) GetCategories(c *gin.Context) {
 	var total int64
 	var err error
 
-	if withProducts {
-		categories, total, err = h.categoryRepo.GetAllWithProductsAndPagination(page, limit)
+	search := c.Query("search")
+	if search != "" {
+		categories, err = h.categoryRepo.GetByName(search)
+		total = int64(len(categories))
 	} else {
-		categories, total, err = h.categoryRepo.GetAllWithPagination(page, limit)
+		if withProducts {
+			categories, total, err = h.categoryRepo.GetAllWithProductsAndPagination(page, limit)
+		} else {
+			categories, total, err = h.categoryRepo.GetAllWithPagination(page, limit)
+		}
 	}
 
 	if err != nil {

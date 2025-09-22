@@ -2,6 +2,7 @@ package repo
 
 import (
 	"backend/app"
+	"backend/internal/helpers"
 	"backend/internal/model"
 	"errors"
 
@@ -128,4 +129,31 @@ func (r *CategoryRepo) CheckSlugExists(slug string, excludeID uuid.UUID) (bool, 
 	}
 	err := query.Count(&count).Error
 	return count > 0, err
+}
+
+
+// GetByName lấy danh mục theo tên (search tương đối với text không dấu)
+func (r *CategoryRepo) GetByName(name string) ([]model.Category, error) {
+	var categories []model.Category
+	
+	// Nếu search term rỗng, trả về mảng rỗng
+	if name == "" {
+		return categories, nil
+	}
+	
+	// Lấy tất cả danh mục
+	err := r.db.Find(&categories).Error
+	if err != nil {
+		return nil, err
+	}
+	
+	// Filter các danh mục phù hợp với search term
+	var filteredCategories []model.Category
+	for _, category := range categories {
+		if helpers.IsSearchMatch(name, category.Name) {
+			filteredCategories = append(filteredCategories, category)
+		}
+	}
+	
+	return filteredCategories, nil
 }
