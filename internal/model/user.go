@@ -25,6 +25,13 @@ type User struct {
 	LoginAttempts     int            `json:"login_attempts" gorm:"default:0"`
 	LockedUntil       *time.Time     `json:"locked_until"`
 	Role              string         `json:"role" gorm:"not null;default:user;size:20;index"`
+	
+	// Thêm các trường thống kê đơn hàng
+	TotalOrders       int            `json:"total_orders" gorm:"default:0"`         // Tổng số đơn hàng
+	CompletedOrders   int            `json:"completed_orders" gorm:"default:0"`     // Số đơn hàng hoàn thành
+	TotalSpent        float64        `json:"total_spent" gorm:"type:decimal(15,2);default:0"` // Tổng tiền đã chi tiêu
+	LastOrderAt       *time.Time     `json:"last_order_at"`                         // Thời gian đơn hàng gần nhất
+	
 	CreatedAt         time.Time      `json:"created_at" gorm:"autoCreateTime"`
 	UpdatedAt         time.Time      `json:"updated_at" gorm:"autoUpdateTime"`
 	DeletedAt         gorm.DeletedAt `json:"-" gorm:"index"`

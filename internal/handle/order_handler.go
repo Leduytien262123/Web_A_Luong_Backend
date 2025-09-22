@@ -99,9 +99,8 @@ func (h *OrderHandler) CreateOrder(c *gin.Context) {
 		TotalAmount:     totalAmount,
 		ShippingAmount:  shippingAmount,
 		FinalAmount:     finalAmount,
-		CouponCode:      input.CouponCode,
-		ShippingAddress: input.ShippingAddress,
-		BillingAddress:  input.BillingAddress,
+		DiscountCode:    input.DiscountCode,
+		Address:         input.Address,
 		CustomerName:    input.CustomerName,
 		CustomerPhone:   input.CustomerPhone,
 		CustomerEmail:   input.CustomerEmail,
@@ -255,7 +254,7 @@ func (h *OrderHandler) GetOrderByID(c *gin.Context) {
 	c.JSON(http.StatusOK, helpers.Response{
 		Success: true,
 		Message: "Lấy đơn hàng thành công",
-		Data:    order.ToResponse(),
+		Data:    order.ToDetailResponse(),
 	})
 }
 
@@ -415,7 +414,7 @@ func (h *OrderHandler) TrackOrderByNumber(c *gin.Context) {
 	c.JSON(http.StatusOK, helpers.Response{
 		Success: true,
 		Message: "Lấy đơn hàng thành công",
-		Data:    order.ToResponse(),
+		Data:    order.ToDetailResponse(),
 	})
 }
 
@@ -431,5 +430,289 @@ func (h *OrderHandler) GetGuestOrderStats(c *gin.Context) {
 		Success: true,
 		Message: "Lấy thống kê đơn hàng khách thành công",
 		Data:    stats,
+	})
+}
+
+// AdminCreateOrder tạo đơn hàng mới bởi admin
+func (h *OrderHandler) AdminCreateOrder(c *gin.Context) {
+	var input model.AdminOrderInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		helpers.ErrorResponse(c, http.StatusBadRequest, "Dữ liệu đầu vào không hợp lệ", err)
+		return
+	}
+
+	// Tạo số đơn hàng duy nhất theo định dạng WebShop-DDMMYYNNN
+	orderNumber, err := h.orderRepo.GenerateOrderNumberForDate(time.Now())
+	if err != nil {
+		helpers.ErrorResponse(c, http.StatusInternalServerError, "Không thể tạo mã đơn hàng", err)
+		return
+	}
+
+	// Tính tổng tiền từ danh sách sản phẩm
+	var totalAmount float64 = 0
+	var orderItems []model.OrderItem
+
+	for _, productID := range input.ProductIDs {
+		// Lấy thông tin sản phẩm
+		product, err := h.productRepo.GetByID(productID)
+		if err != nil {
+			helpers.ErrorResponse(c, http.StatusBadRequest, 
+				fmt.Sprintf("Không tìm thấy sản phẩm với ID: %s", productID), err)
+			return
+		}
+
+		// Mặc định số lượng là 1 (có thể mở rộng sau)
+		quantity := 1
+		itemTotal := float64(quantity) * product.Price
+		totalAmount += itemTotal
+
+		orderItems = append(orderItems, model.OrderItem{
+			ProductID: productID,
+			Quantity:  quantity,
+			Price:     product.Price,
+			Total:     itemTotal,
+		})
+	}
+
+	finalAmount := totalAmount + input.ShippingFee
+
+	// Xác định payment status dựa trên payment method
+	paymentStatus := "pending"
+	if input.PaymentMethod == "unpaid" {
+		paymentStatus = "unpaid"
+	}
+
+	// Tạo đơn hàng
+	order := model.Order{
+		UserID:          nil, // Admin tạo đơn không gắn với user cụ thể
+		CreatorID:       &input.CreatorID,
+		CreatorName:     input.CreatorName,
+		OrderNumber:     orderNumber,
+		Status:          input.Status,
+		PaymentStatus:   paymentStatus,
+		PaymentMethod:   input.PaymentMethod,
+		TotalAmount:     totalAmount,
+		ShippingAmount:  input.ShippingFee,
+		FinalAmount:     finalAmount,
+		DiscountCode:    "",
+		Address:         input.Address,
+		CustomerName:    input.CustomerName,
+		CustomerPhone:   input.Phone,
+		CustomerEmail:   input.Email,
+		Notes:           input.Note,
+		IsGuestOrder:    true, // Admin tạo đơn được coi là guest order
+		OrderType:       input.OrderType,
+		OrderItems:      orderItems,
+	}
+
+	if input.DiscountCode != nil {
+		order.DiscountCode = *input.DiscountCode
+	}
+
+	if err := h.orderRepo.Create(&order); err != nil {
+		helpers.ErrorResponse(c, http.StatusInternalServerError, "Không thể tạo đơn hàng", err)
+		return
+	}
+
+	// Tải đơn hàng đã tạo với thông tin chi tiết
+	createdOrder, err := h.orderRepo.GetByID(order.ID)
+	if err != nil {
+		helpers.ErrorResponse(c, http.StatusInternalServerError, "Không thể tải đơn hàng đã tạo", err)
+		return
+	}
+
+	c.JSON(http.StatusCreated, helpers.Response{
+		Success: true,
+		Message: "Tạo đơn hàng thành công",
+		Data:    createdOrder.ToResponse(),
+	})
+}
+
+// AdminGetOrders lấy danh sách đơn hàng với bộ lọc cho admin
+func (h *OrderHandler) AdminGetOrders(c *gin.Context) {
+	pageStr := c.DefaultQuery("page", "1")
+	limitStr := c.DefaultQuery("limit", "10")
+	status := c.Query("status")
+	paymentStatus := c.Query("payment_status")
+	orderType := c.Query("order_type")
+
+	page, err := strconv.Atoi(pageStr)
+	if err != nil || page < 1 {
+		page = 1
+	}
+
+	limit, err := strconv.Atoi(limitStr)
+	if err != nil || limit < 1 || limit > 100 {
+		limit = 10
+	}
+
+	orders, total, err := h.orderRepo.GetAllWithFilters(page, limit, status, paymentStatus, orderType)
+	if err != nil {
+		helpers.ErrorResponse(c, http.StatusInternalServerError, "Không thể lấy danh sách đơn hàng", err)
+		return
+	}
+
+	var response []model.OrderResponse
+	for _, order := range orders {
+		response = append(response, order.ToResponse())
+	}
+
+	totalPages := (total + int64(limit) - 1) / int64(limit)
+
+	c.JSON(http.StatusOK, helpers.Response{
+		Success: true,
+		Message: "Lấy danh sách đơn hàng thành công",
+		Data: map[string]interface{}{
+			"orders":      response,
+			"total":       total,
+			"page":        page,
+			"limit":       limit,
+			"total_pages": totalPages,
+			"has_next":    page < int(totalPages),
+			"has_prev":    page > 1,
+			"filters": map[string]interface{}{
+				"status":         status,
+				"payment_status": paymentStatus,
+				"order_type":     orderType,
+			},
+		},
+	})
+}
+
+// AdminUpdateOrder cập nhật đơn hàng bởi admin
+func (h *OrderHandler) AdminUpdateOrder(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		helpers.ErrorResponse(c, http.StatusBadRequest, "ID đơn hàng không hợp lệ", err)
+		return
+	}
+
+	var input model.AdminOrderUpdateInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		helpers.ErrorResponse(c, http.StatusBadRequest, "Dữ liệu đầu vào không hợp lệ", err)
+		return
+	}
+
+	// Kiểm tra đơn hàng có tồn tại không
+	_, err = h.orderRepo.GetByID(id)
+	if err != nil {
+		if err.Error() == "order not found" {
+			helpers.ErrorResponse(c, http.StatusNotFound, "Không tìm thấy đơn hàng", err)
+			return
+		}
+		helpers.ErrorResponse(c, http.StatusInternalServerError, "Lỗi cơ sở dữ liệu", err)
+		return
+	}
+
+	// Tạo map updates chỉ với các trường được cung cấp
+	updates := make(map[string]interface{})
+
+	if input.CustomerName != nil {
+		updates["name"] = *input.CustomerName
+	}
+	if input.Phone != nil {
+		updates["phone"] = *input.Phone
+	}
+	if input.Email != nil {
+		updates["email"] = *input.Email
+	}
+	if input.Address != nil {
+		updates["address"] = *input.Address
+	}
+	if input.Note != nil {
+		updates["notes"] = *input.Note
+	}
+	if input.DiscountCode != nil {
+		updates["discount_code"] = *input.DiscountCode
+	}
+	if input.ShippingFee != nil {
+		updates["shipping_fee"] = *input.ShippingFee
+		// Cập nhật lại final amount nếu có thay đổi shipping fee
+		order, _ := h.orderRepo.GetByID(id)
+		updates["final_amount"] = order.TotalAmount + *input.ShippingFee
+	}
+	if input.Status != nil {
+		updates["status"] = *input.Status
+		// Ghi nhận thời gian cho một số trạng thái cụ thể
+		now := time.Now()
+		switch *input.Status {
+		case "shipped":
+			updates["shipped_at"] = &now
+		case "delivered":
+			updates["delivered_at"] = &now
+		case "cancelled":
+			updates["cancelled_at"] = &now
+		}
+	}
+	if input.PaymentMethod != nil {
+		updates["payment_method"] = *input.PaymentMethod
+		// Tự động cập nhật payment status
+		if *input.PaymentMethod == "unpaid" {
+			updates["payment_status"] = "unpaid"
+		} else {
+			updates["payment_status"] = "pending"
+		}
+	}
+
+	if len(updates) == 0 {
+		helpers.ErrorResponse(c, http.StatusBadRequest, "Không có dữ liệu để cập nhật", nil)
+		return
+	}
+
+	if err := h.orderRepo.AdminUpdate(id, updates); err != nil {
+		helpers.ErrorResponse(c, http.StatusInternalServerError, "Không thể cập nhật đơn hàng", err)
+		return
+	}
+
+	// Lấy đơn hàng đã cập nhật
+	updatedOrder, err := h.orderRepo.GetByID(id)
+	if err != nil {
+		helpers.ErrorResponse(c, http.StatusInternalServerError, "Không thể lấy đơn hàng đã cập nhật", err)
+		return
+	}
+
+	c.JSON(http.StatusOK, helpers.Response{
+		Success: true,
+		Message: "Cập nhật đơn hàng thành công",
+		Data:    updatedOrder.ToResponse(),
+	})
+}
+
+// AdminDeleteOrder xóa đơn hàng bởi admin
+func (h *OrderHandler) AdminDeleteOrder(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		helpers.ErrorResponse(c, http.StatusBadRequest, "ID đơn hàng không hợp lệ", err)
+		return
+	}
+
+	// Kiểm tra đơn hàng có tồn tại không
+	order, err := h.orderRepo.GetByID(id)
+	if err != nil {
+		if err.Error() == "order not found" {
+			helpers.ErrorResponse(c, http.StatusNotFound, "Không tìm thấy đơn hàng", err)
+			return
+		}
+		helpers.ErrorResponse(c, http.StatusInternalServerError, "Lỗi cơ sở dữ liệu", err)
+		return
+	}
+
+	// Kiểm tra trạng thái đơn hàng có cho phép xóa không
+	if order.Status == "shipped" || order.Status == "delivered" {
+		helpers.ErrorResponse(c, http.StatusBadRequest, "Không thể xóa đơn hàng đã giao hoặc đang giao", nil)
+		return
+	}
+
+	if err := h.orderRepo.Delete(id); err != nil {
+		helpers.ErrorResponse(c, http.StatusInternalServerError, "Không thể xóa đơn hàng", err)
+		return
+	}
+
+	c.JSON(http.StatusOK, helpers.Response{
+		Success: true,
+		Message: "Xóa đơn hàng thành công",
+		Data:    map[string]interface{}{"deleted_order_id": id},
 	})
 }

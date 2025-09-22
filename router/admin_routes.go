@@ -68,13 +68,15 @@ func SetupAdminRoutes(router *gin.Engine) {
 		managerRoutes.PATCH("/product/:id/stock", productHandler.UpdateProductStock)
 
 		// Quản lý đơn hàng
-		managerRoutes.GET("/orders", orderHandler.GetOrders)
-		managerRoutes.POST("/order", orderHandler.CreateOrder)
+		managerRoutes.GET("/orders", orderHandler.AdminGetOrders) // Thay đổi để sử dụng AdminGetOrders với bộ lọc
+		managerRoutes.POST("/order", orderHandler.AdminCreateOrder) // Thay đổi để sử dụng AdminCreateOrder
 		managerRoutes.GET("/order/stats", orderHandler.GetOrderStats)
 		managerRoutes.GET("/order/guest-stats", orderHandler.GetGuestOrderStats)
 		managerRoutes.GET("/order/:id", orderHandler.GetOrderByID)
+		managerRoutes.PUT("/order/:id", orderHandler.AdminUpdateOrder) // Thêm route cập nhật đơn hàng
 		managerRoutes.PUT("/order/:id/status", orderHandler.UpdateOrderStatus)
 		managerRoutes.PUT("/order/:id/payment", orderHandler.UpdatePaymentStatus)
+		managerRoutes.DELETE("/order/:id", orderHandler.AdminDeleteOrder) // Thêm route xóa đơn hàng
 
 		// Quản lý mã giảm giá
 		managerRoutes.GET("/discounts", discountHandler.GetDiscounts)
