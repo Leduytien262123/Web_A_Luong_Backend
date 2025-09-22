@@ -26,10 +26,15 @@ type Category struct {
 }
 
 type CategoryMetadata struct {
-    MetaTitle       string `json:"meta_title"`
-    MetaDescription string `json:"meta_description"`
-    MetaImage       string `json:"meta_image"`
-    MetaKeywords    string `json:"meta_keywords"`
+	MetaTitle       string    `json:"meta_title"`
+	MetaDescription string    `json:"meta_description"`
+	MetaImage       MetaImage `json:"meta_image"`
+	MetaKeywords    string    `json:"meta_keywords"`
+}
+
+type MetaImage struct {
+	URL string `json:"url"`
+	Alt string `json:"alt"`
 }
 
 // TableName chỉ định tên bảng cho model Category

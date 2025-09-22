@@ -8,7 +8,7 @@ import (
 )
 
 type Discount struct {
-	ID               uuid.UUID      `gorm:"type:uuid;default:uuid_generate_v4();primaryKey" json:"id"`
+	ID				 uuid.UUID      `gorm:"type:char(36);primaryKey" json:"id"`
 	Code             string         `json:"code" gorm:"unique;not null;size:50;index"`
 	Name             string         `json:"name" gorm:"not null;size:200"`
 	Description      string         `json:"description" gorm:"size:500"`

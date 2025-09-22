@@ -53,7 +53,12 @@ func (h *CategoryHandler) CreateCategory(c *gin.Context) {
 	       ShowOnMenu:  false,
 	       ShowOnHome:  false,
 	       ShowOnFooter: false,
-	       Metadata: model.CategoryMetadata{},
+	       Metadata: model.CategoryMetadata{
+		       MetaTitle:       "",
+		       MetaDescription: "",
+		       MetaImage:       model.MetaImage{URL: "", Alt: ""},
+		       MetaKeywords:    "",
+	       },
        }
 
        if input.IsActive != nil {
@@ -69,7 +74,14 @@ func (h *CategoryHandler) CreateCategory(c *gin.Context) {
 	       category.ShowOnFooter = *input.ShowOnFooter
        }
        if input.Metadata != nil {
-	       category.Metadata = *input.Metadata
+	       // Chỉ lấy url và alt cho meta_image
+	       category.Metadata.MetaTitle = input.Metadata.MetaTitle
+	       category.Metadata.MetaDescription = input.Metadata.MetaDescription
+	       category.Metadata.MetaKeywords = input.Metadata.MetaKeywords
+	       if input.Metadata.MetaImage.URL != "" || input.Metadata.MetaImage.Alt != "" {
+		       category.Metadata.MetaImage.URL = input.Metadata.MetaImage.URL
+		       category.Metadata.MetaImage.Alt = input.Metadata.MetaImage.Alt
+	       }
        }
 
 	if err := h.categoryRepo.Create(&category); err != nil {
