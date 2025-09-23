@@ -4,6 +4,7 @@ import (
 	"backend/internal/helpers"
 	"backend/internal/model"
 	"backend/internal/repo"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"strconv"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"gorm.io/datatypes"
 )
 
 type ProductHandler struct {
@@ -55,6 +57,15 @@ func (h *ProductHandler) CreateProduct(c *gin.Context) {
 			return
 		}
 	}
+	
+	// Tạo metadata mặc định
+	defaultMetadata := model.ProductMetadata{
+		MetaTitle:       "",
+		MetaDescription: "",
+		MetaImage:       model.MetaImageProduct{URL: "", Alt: ""},
+		MetaKeywords:    "",
+	}
+	metadataJSON, _ := json.Marshal(defaultMetadata)
 
 	product := model.Product{
 		Name:        input.Name,
@@ -64,6 +75,12 @@ func (h *ProductHandler) CreateProduct(c *gin.Context) {
 		Stock:       input.Stock,
 		CategoryID:  input.CategoryID,
 		IsActive:    true,
+		Metadata:    datatypes.JSON(metadataJSON),
+	}
+
+	if input.Metadata != nil {
+		metadataJSON, _ := json.Marshal(input.Metadata)
+		product.Metadata = datatypes.JSON(metadataJSON)
 	}
 
 	if err := h.productRepo.Create(&product); err != nil {
@@ -257,6 +274,10 @@ func (h *ProductHandler) UpdateProduct(c *gin.Context) {
 	product.SKU = input.SKU
 	product.Stock = input.Stock
 	product.CategoryID = input.CategoryID
+	if input.Metadata != nil {
+		metadataJSON, _ := json.Marshal(input.Metadata)
+		product.Metadata = datatypes.JSON(metadataJSON)
+	}
 
 	if err := h.productRepo.Update(product); err != nil {
 		helpers.ErrorResponse(c, http.StatusInternalServerError, "Không thể cập nhật sản phẩm", err)

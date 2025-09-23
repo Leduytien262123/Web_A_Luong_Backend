@@ -51,7 +51,7 @@ func (h *CategoryHandler) CreateCategory(c *gin.Context) {
        defaultMetadata := model.CategoryMetadata{
 	       MetaTitle:       "",
 	       MetaDescription: "",
-	       MetaImage:       model.MetaImage{URL: "", Alt: ""},
+	       MetaImage:       model.MetaImageCategory{URL: "", Alt: ""},
 	       MetaKeywords:    "",
        }
        metadataJSON, _ := json.Marshal(defaultMetadata)

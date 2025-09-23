@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
 
@@ -21,6 +22,7 @@ type Product struct {
 	Size        string         `json:"size" gorm:"size:50"`
 	Weight      float64        `json:"weight" gorm:"type:decimal(8,2)"`
 	Dimensions  string         `json:"dimensions" gorm:"size:100"`
+	Metadata    datatypes.JSON `json:"metadata" gorm:"type:json"`
 	IsActive    bool           `json:"is_active" gorm:"default:true;index"`
 	IsFeatured  bool           `json:"is_featured" gorm:"default:false;index"`
 	CreatedAt   time.Time      `json:"created_at" gorm:"autoCreateTime"`
@@ -61,6 +63,25 @@ type ProductInput struct {
 	Weight      float64    `json:"weight" binding:"gte=0"`
 	Dimensions  string     `json:"dimensions" binding:"max=100"`
 	IsFeatured  bool       `json:"is_featured"`
+	Metadata    *ProductMetadata `json:"metadata,omitempty"`
+}
+
+// CategoryShortResponse chỉ trả về id và name
+type CategoryShortResponse struct {
+	ID   uuid.UUID `json:"id"`
+	Name string    `json:"name"`
+}
+
+type ProductMetadata struct {
+	MetaTitle       string    `json:"meta_title"`
+	MetaDescription string    `json:"meta_description"`
+	MetaImage       MetaImageProduct `json:"meta_image"`
+	MetaKeywords    string    `json:"meta_keywords"`
+}
+
+type MetaImageProduct struct {
+	URL string `json:"url"`
+	Alt string `json:"alt"`
 }
 
 type ProductResponse struct {
@@ -71,7 +92,7 @@ type ProductResponse struct {
 	SKU           string                 `json:"sku"`
 	Stock         int                    `json:"stock"`
 	CategoryID    *uuid.UUID             `json:"category_id"`
-	Category      *CategoryResponse      `json:"category,omitempty"`
+	Category      *CategoryShortResponse  `json:"category,omitempty"`
 	BrandID       *uuid.UUID             `json:"brand_id"`
 	Brand         *BrandResponse         `json:"brand,omitempty"`
 	Material      string                 `json:"material"`
@@ -81,6 +102,7 @@ type ProductResponse struct {
 	Dimensions    string                 `json:"dimensions"`
 	IsActive      bool                   `json:"is_active"`
 	IsFeatured    bool                   `json:"is_featured"`
+	Metadata      datatypes.JSON         `json:"metadata" gorm:"type:json"`
 	ProductImages []ProductImageResponse `json:"product_images,omitempty"`
 	AverageRating float64                `json:"average_rating"`
 	ReviewCount   int                    `json:"review_count"`
@@ -105,6 +127,7 @@ func (p *Product) ToResponse() ProductResponse {
 		Weight:      p.Weight,
 		Dimensions:  p.Dimensions,
 		IsActive:    p.IsActive,
+		Metadata:    p.Metadata,
 		IsFeatured:  p.IsFeatured,
 		CreatedAt:   p.CreatedAt,
 		UpdatedAt:   p.UpdatedAt,
@@ -112,8 +135,10 @@ func (p *Product) ToResponse() ProductResponse {
 
 	// Bao gồm thông tin danh mục nếu đã được nạp
 	if p.Category != nil {
-		categoryResponse := p.Category.ToResponse()
-		response.Category = &categoryResponse
+		response.Category = &CategoryShortResponse{
+			ID:   p.Category.ID,
+			Name: p.Category.Name,
+		}
 	}
 
 	// Bao gồm thông tin thương hiệu nếu đã được nạp

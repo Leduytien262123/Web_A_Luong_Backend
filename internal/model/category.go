@@ -29,11 +29,11 @@ type Category struct {
 type CategoryMetadata struct {
 	MetaTitle       string    `json:"meta_title"`
 	MetaDescription string    `json:"meta_description"`
-	MetaImage       MetaImage `json:"meta_image"`
+	MetaImage       MetaImageCategory `json:"meta_image"`
 	MetaKeywords    string    `json:"meta_keywords"`
 }
 
-type MetaImage struct {
+type MetaImageCategory struct {
 	URL string `json:"url"`
 	Alt string `json:"alt"`
 }
