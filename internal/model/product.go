@@ -13,6 +13,7 @@ type Product struct {
 	Name        string         `json:"name" gorm:"not null;size:255;index"`
 	Description string         `json:"description" gorm:"type:longtext"`
 	Price       float64        `json:"price" gorm:"not null;type:decimal(10,2);index"`
+	DiscountPrice float64      `json:"discount_price" gorm:"type:decimal(10,2);index"`
 	SKU         string         `json:"sku" gorm:"unique;not null;size:100;index"`
 	Stock       int            `json:"stock" gorm:"not null;default:0;index"`
 	CategoryID  *uuid.UUID     `json:"category_id" gorm:"type:char(36);index"`
@@ -53,6 +54,7 @@ type ProductInput struct {
 	Name        string     `json:"name" binding:"required,min=1,max=200"`
 	Description string     `json:"description" binding:"max=1000"`
 	Price       float64    `json:"price" binding:"required,gt=0"`
+	DiscountPrice *float64   `json:"discount_price,omitempty" binding:"omitempty,gt=0,ltefield=Price"`
 	SKU         string     `json:"sku" binding:"required,min=1,max=50"`
 	Stock       int        `json:"stock" binding:"gte=0"`
 	CategoryID  *uuid.UUID `json:"category_id"`
@@ -89,6 +91,7 @@ type ProductResponse struct {
 	Name          string                 `json:"name"`
 	Description   string                 `json:"description"`
 	Price         float64                `json:"price"`
+	DiscountPrice *float64               `json:"discount_price,omitempty"`
 	SKU           string                 `json:"sku"`
 	Stock         int                    `json:"stock"`
 	CategoryID    *uuid.UUID             `json:"category_id"`
@@ -131,6 +134,12 @@ func (p *Product) ToResponse() ProductResponse {
 		IsFeatured:  p.IsFeatured,
 		CreatedAt:   p.CreatedAt,
 		UpdatedAt:   p.UpdatedAt,
+	}
+
+	// Nếu có giá giảm (khác 0) thì gán pointer, ngược lại để nil
+	if p.DiscountPrice > 0 {
+		dp := p.DiscountPrice
+		response.DiscountPrice = &dp
 	}
 
 	// Bao gồm thông tin danh mục nếu đã được nạp

@@ -71,6 +71,12 @@ func (h *ProductHandler) CreateProduct(c *gin.Context) {
 		Name:        input.Name,
 		Description: input.Description,
 		Price:       input.Price,
+		DiscountPrice: func() float64 {
+			if input.DiscountPrice != nil {
+				return *input.DiscountPrice
+			}
+			return 0
+		}(),
 		SKU:         input.SKU,
 		Stock:       input.Stock,
 		CategoryID:  input.CategoryID,
@@ -271,6 +277,12 @@ func (h *ProductHandler) UpdateProduct(c *gin.Context) {
 	product.Name = input.Name
 	product.Description = input.Description
 	product.Price = input.Price
+	product.DiscountPrice = func() float64 {
+		if input.DiscountPrice != nil {
+			return *input.DiscountPrice
+		}
+		return 0
+	}()
 	product.SKU = input.SKU
 	product.Stock = input.Stock
 	product.CategoryID = input.CategoryID
