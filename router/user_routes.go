@@ -85,7 +85,7 @@ func SetupUserRoutes(router *gin.Engine) {
 		publicOrders := public.Group("/public/orders")
 		{
 			publicOrders.POST("/", orderHandler.CreateOrder)
-			publicOrders.GET("/track/:order_number", orderHandler.TrackOrderByNumber)
+			publicOrders.GET("/track/:order_code", orderHandler.TrackOrderByNumber)
 			publicOrders.POST("/lookup", orderHandler.LookupGuestOrders)
 		}
 

@@ -13,7 +13,7 @@ type Order struct {
 	CreatorName      string         `json:"creator_name" gorm:"size:255;index"`
 	OrderType        string         `json:"order_type" gorm:"size:50;index"`
 	UserID           *uuid.UUID     `json:"user_id" gorm:"type:char(36);index"`
-	OrderNumber      string         `json:"order_number" gorm:"unique;not null;size:100;index"`
+	OrderCode        string         `json:"order_code" gorm:"unique;not null;size:100;index"`
 	Status           string         `json:"status" gorm:"not null;size:50;default:pending;index"`
 	PaymentStatus    string         `json:"payment_status" gorm:"not null;size:50;default:pending;index"`
 	PaymentMethod    string         `json:"payment_method" gorm:"size:50"`
@@ -23,9 +23,9 @@ type Order struct {
 	FinalAmount      float64        `json:"final_amount" gorm:"not null;type:decimal(10,2)"`
 	DiscountCode     string         `json:"discount_code" gorm:"size:50"`
 	Address          string         `json:"address" gorm:"column:shipping_address;type:text;not null"`
-	CustomerName     string         `json:"customer_name" gorm:"not null;size:255"`
-	CustomerPhone    string         `json:"customer_phone" gorm:"not null;size:20;index"`
-	CustomerEmail    string         `json:"customer_email" gorm:"not null;size:255;index"`
+	Email            string         `json:"email" gorm:"not null;size:255;index"`
+	Name             string         `json:"name" gorm:"not null;size:255"`
+	Phone            string         `json:"phone" gorm:"not null;size:20;index"`
 	Notes            string         `json:"notes" gorm:"type:text"`
 	IsGuestOrder     bool           `json:"is_guest_order" gorm:"default:false;index"`
 	ShippedAt        *time.Time     `json:"shipped_at"`
@@ -84,9 +84,9 @@ type OrderInput struct {
 	PaymentMethod   string           `json:"payment_method" binding:"required,oneof=cod bank_transfer momo zalopay"`
 	DiscountCode    string           `json:"discount_code"`
 	Address         string           `json:"address" binding:"required"`
-	CustomerName    string           `json:"customer_name" binding:"required"`
-	CustomerPhone   string           `json:"customer_phone" binding:"required"`
-	CustomerEmail   string           `json:"customer_email" binding:"required,email"`
+	Name            string           `json:"name" binding:"required"`
+	Phone           string           `json:"phone" binding:"required"`
+	Email           string           `json:"email" binding:"required,email"`
 	Notes           string           `json:"notes"`
 	Items           []OrderItemInput `json:"items" binding:"required,min=1"`
 }
@@ -94,6 +94,7 @@ type OrderInput struct {
 type OrderItemInput struct {
 	ProductID uuid.UUID `json:"product_id" binding:"required"`
 	Quantity  int       `json:"quantity" binding:"required,min=1"`
+	Price     float64   `json:"price" binding:"required"`
 }
 
 type GuestOrderLookupInput struct {
@@ -103,7 +104,7 @@ type GuestOrderLookupInput struct {
 type AdminOrderInput struct {
 	CreatorID      uuid.UUID   `json:"creator_id" binding:"required"`
 	CreatorName    string      `json:"creator_name" binding:"required"`
-	CustomerName   string      `json:"customer_name" binding:"required"`
+	Name           string      `json:"name" binding:"required"`
 	Phone          string      `json:"phone" binding:"required"`
 	Email          string      `json:"email" binding:"required,email"`
 	Address        string      `json:"address" binding:"required"`
@@ -113,11 +114,11 @@ type AdminOrderInput struct {
 	Status         string      `json:"status" binding:"required,oneof=new pending confirmed processing shipped delivered cancelled"`
 	PaymentMethod  string      `json:"payment_method" binding:"required,oneof=unpaid cod bank_transfer momo zalopay"`
 	OrderType      string      `json:"order_type" binding:"required,oneof=retail wholesale online"`
-	ProductIDs     []uuid.UUID `json:"product_ids" binding:"required,min=1"`
+	Products       []OrderItemInput `json:"products" binding:"required,min=1"`
 }
 
 type AdminOrderUpdateInput struct {
-	CustomerName   *string  `json:"customer_name"`
+	Name           *string  `json:"name"`
 	Phone          *string  `json:"phone"`
 	Email          *string  `json:"email"`
 	Address        *string  `json:"address"`
@@ -125,8 +126,9 @@ type AdminOrderUpdateInput struct {
 	DiscountCode   *string  `json:"discount_code"`
 	ShippingFee    *float64 `json:"shipping_fee"`
 	Status         *string  `json:"status" binding:"omitempty,oneof=new pending confirmed processing shipped delivered cancelled"`
-	PaymentMethod  *string  `json:"payment_method" binding:"omitempty,oneof=unpaid cod bank_transfer momo zalopay"`
+	PaymentMethod  *string  `json:"payment_method" binding:"omitempty,oneof=unpaid paid refunded"`
 	OrderType      *string  `json:"order_type" binding:"omitempty,oneof=retail wholesale online"`
+	Products       []OrderItemInput `json:"products" binding:"required,min=1"`
 }
 
 type OrderResponse struct {
@@ -135,7 +137,7 @@ type OrderResponse struct {
 	CreatorID        *uuid.UUID          `json:"creator_id,omitempty"`
 	CreatorName      string              `json:"creator_name,omitempty"`
 	OrderType        string              `json:"order_type,omitempty"`
-	OrderNumber      string              `json:"order_number"`
+	OrderCode        string              `json:"order_code"`
 	Status           string              `json:"status"`
 	PaymentStatus    string              `json:"payment_status"`
 	PaymentMethod    string              `json:"payment_method"`
@@ -145,9 +147,9 @@ type OrderResponse struct {
 	FinalAmount      float64             `json:"final_amount"`
 	DiscountCode     string              `json:"discount_code"`
 	Address          string              `json:"address"`
-	CustomerName     string              `json:"customer_name"`
-	CustomerPhone    string              `json:"customer_phone"`
-	CustomerEmail    string              `json:"customer_email"`
+	Name             string              `json:"name"`
+	Phone            string              `json:"phone"`
+	Email            string              `json:"email"`
 	Notes            string              `json:"notes"`
 	IsGuestOrder     bool                `json:"is_guest_order"`
 	ShippedAt        *time.Time          `json:"shipped_at"`
@@ -170,7 +172,7 @@ type OrderItemResponse struct {
 type OrderDetailResponse struct {
 	ID            uuid.UUID          `json:"id"`
 	UserID        *uuid.UUID         `json:"user_id"`
-	OrderNumber   string             `json:"order_number"`
+	OrderCode     string             `json:"order_code"`
 	Status        string             `json:"status"`
 	PaymentStatus string             `json:"payment_status"`
 	PaymentMethod string             `json:"payment_method"`
@@ -186,7 +188,7 @@ type OrderDetailResponse struct {
 	CreatedAt     time.Time          `json:"created_at"`
 	UpdatedAt     time.Time          `json:"updated_at"`
 	Customer      CustomerInfo       `json:"customer"`
-	Products      []ProductDetailInfo `json:"products"` // ghi chú: thay đổi thành danh sách ProductDetailInfo (product_id, name, quantity, price)
+	Products      []ProductDetailInfo `json:"products"`
 	Items         []ItemInfo         `json:"items"`
 	Creator       *CreatorInfo       `json:"creator,omitempty"`
 	InfoOrder     OrderInfo          `json:"info_order"`
@@ -231,7 +233,7 @@ func (o *Order) ToResponse() OrderResponse {
 		CreatorID:        o.CreatorID,
 		CreatorName:      o.CreatorName,
 		OrderType:        o.OrderType,
-		OrderNumber:      o.OrderNumber,
+		OrderCode:        o.OrderCode,
 		Status:           o.Status,
 		PaymentStatus:    o.PaymentStatus,
 		PaymentMethod:    o.PaymentMethod,
@@ -241,9 +243,9 @@ func (o *Order) ToResponse() OrderResponse {
 		FinalAmount:      o.FinalAmount,
 		DiscountCode:     o.DiscountCode,
 		Address:          o.Address,
-		CustomerName:     o.CustomerName,
-		CustomerPhone:    o.CustomerPhone,
-		CustomerEmail:    o.CustomerEmail,
+		Name:             o.Name,
+		Phone:            o.Phone,
+		Email:            o.Email,
 		Notes:            o.Notes,
 		IsGuestOrder:     o.IsGuestOrder,
 		ShippedAt:        o.ShippedAt,
@@ -277,7 +279,7 @@ func (o *Order) ToDetailResponse() OrderDetailResponse {
 	response := OrderDetailResponse{
 		ID:             o.ID,
 		UserID:         o.UserID,
-		OrderNumber:    o.OrderNumber,
+		OrderCode:      o.OrderCode,
 		Status:         o.Status,
 		PaymentStatus:  o.PaymentStatus,
 		PaymentMethod:  o.PaymentMethod,
@@ -294,9 +296,9 @@ func (o *Order) ToDetailResponse() OrderDetailResponse {
 		UpdatedAt:      o.UpdatedAt,
 		DiscountCode:   o.DiscountCode,
 		Customer: CustomerInfo{
-			Name:  o.CustomerName,
-			Email: o.CustomerEmail,
-			Phone: o.CustomerPhone,
+			Name:  o.Name,
+			Email: o.Email,
+			Phone: o.Phone,
 		},
 		InfoOrder: OrderInfo{
 			Address: o.Address,

@@ -24,20 +24,20 @@ func NewOrderRepo() *OrderRepo {
 // Create tạo mới một đơn hàng với logic tự động tạo user
 func (r *OrderRepo) Create(order *model.Order) error {
 	return r.db.Transaction(func(tx *gorm.DB) error {
-		// Nếu không có UserID nhưng có thông tin customer, tự động tạo user mới
-		if order.UserID == nil && order.CustomerEmail != "" && order.CustomerPhone != "" {
+		// Nếu không có UserID nhưng có thông tin , tự động tạo user mới
+		if order.UserID == nil && order.Email != "" && order.Phone != "" {
 			// Kiểm tra xem đã có user với email hoặc phone này chưa
 			var existingUser model.User
-			err := tx.Where("email = ? OR phone = ?", order.CustomerEmail, order.CustomerPhone).First(&existingUser).Error
+			err := tx.Where("email = ? OR phone = ?", order.Email, order.Phone).First(&existingUser).Error
 			
 			if err != nil && errors.Is(err, gorm.ErrRecordNotFound) {
 				// Tạo user mới
 				newUser := model.User{
 					ID:       uuid.New(),
-					Username: order.CustomerEmail, // Sử dụng email làm username
-					FullName: order.CustomerName,
-					Email:    order.CustomerEmail,
-					Phone:    order.CustomerPhone,
+					Username: order.Email, // Sử dụng email làm username
+					FullName: order.Name,
+					Email:    order.Email,
+					Phone:    order.Phone,
 					Password: "auto_generated", // Có thể hash password mặc định hoặc để trống
 					Role:     "user",
 					IsActive: true,
@@ -75,6 +75,16 @@ func (r *OrderRepo) Create(order *model.Order) error {
 	})
 }
 
+// Xóa toàn bộ order_items của một đơn hàng
+func (r *OrderRepo) DeleteOrderItems(orderID uuid.UUID) error {
+    return r.db.Where("order_id = ?", orderID).Delete(&model.OrderItem{}).Error
+}
+
+// Thêm nhiều order_items mới cho một đơn hàng
+func (r *OrderRepo) BulkInsertOrderItems(items []model.OrderItem) error {
+    return r.db.Create(&items).Error
+}
+
 // updateUserOrderStats cập nhật thống kê đơn hàng của user
 func (r *OrderRepo) updateUserOrderStats(tx *gorm.DB, userID uuid.UUID, orderAmount float64, orderCount int) error {
 	updates := map[string]interface{}{
@@ -103,14 +113,14 @@ func (r *OrderRepo) GetByID(id uuid.UUID) (*model.Order, error) {
 	return &order, nil
 }
 
-// GetByOrderNumber lấy đơn hàng theo mã đơn
-func (r *OrderRepo) GetByOrderNumber(orderNumber string) (*model.Order, error) {
+// GetByOrderCode lấy đơn hàng theo mã đơn
+func (r *OrderRepo) GetByOrderCode(orderCode string) (*model.Order, error) {
 	var order model.Order
 	err := r.db.Preload("User").
 		Preload("Creator").
 		Preload("OrderItems").
 		Preload("OrderItems.Product").
-		Where("order_number = ?", orderNumber).
+		Where("order_code = ?", orderCode).
 		First(&order).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -225,14 +235,14 @@ func (r *OrderRepo) UpdatePaymentStatus(id uuid.UUID, paymentStatus string) erro
 	return r.db.Model(&model.Order{}).Where("id = ?", id).Update("payment_status", paymentStatus).Error
 }
 
-// GenerateOrderNumberForDate tạo mã đơn hàng theo định dạng WebShop-DDMMYYNNN
+// GenerateOrderCodeForDate tạo mã đơn hàng theo định dạng WebShop-DDMMYYNNN
 // Ví dụ: WebShop-180925001 (18/09/25 + sequence 001)
-func (r *OrderRepo) GenerateOrderNumberForDate(t time.Time) (string, error) {
+func (r *OrderRepo) GenerateOrderCodeForDate(t time.Time) (string, error) {
 	datePart := t.Format("020106") // ddmmyy
 	prefix := fmt.Sprintf("WebShop-%s", datePart)
 
 	var lastOrder model.Order
-	err := r.db.Where("order_number LIKE ?", prefix+"%").Order("order_number DESC").Limit(1).First(&lastOrder).Error
+	err := r.db.Where("order_code LIKE ?", prefix+"%").Order("order_code DESC").Limit(1).First(&lastOrder).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			// Không có đơn nào cho ngày hôm nay, bắt đầu từ 1
@@ -242,7 +252,7 @@ func (r *OrderRepo) GenerateOrderNumberForDate(t time.Time) (string, error) {
 	}
 
 	// Lấy phần số cuối của mã đơn
-	suffix := lastOrder.OrderNumber[len(prefix):]
+	suffix := lastOrder.OrderCode[len(prefix):]
 	var lastSeq int
 	if suffix != "" {
 		_, err := fmt.Sscanf(suffix, "%d", &lastSeq)
@@ -263,10 +273,10 @@ func (r *OrderRepo) GenerateOrderNumberForDate(t time.Time) (string, error) {
 	return prefix + seqStr, nil
 }
 
-// CheckOrderNumberExists kiểm tra mã đơn đã tồn tại chưa
-func (r *OrderRepo) CheckOrderNumberExists(orderNumber string) (bool, error) {
+// CheckOrderCodeExists kiểm tra mã đơn đã tồn tại chưa
+func (r *OrderRepo) CheckOrderCodeExists(orderCode string) (bool, error) {
 	var count int64
-	err := r.db.Model(&model.Order{}).Where("order_number = ?", orderNumber).Count(&count).Error
+	err := r.db.Model(&model.Order{}).Where("order_code = ?", orderCode).Count(&count).Error
 	return count > 0, err
 }
 
@@ -313,7 +323,7 @@ func (r *OrderRepo) GetByEmailOrPhone(emailOrPhone string, page, limit int) ([]m
 	var total int64
 
 	// Xây dựng truy vấn tìm theo email hoặc số điện thoại
-	query := r.db.Model(&model.Order{}).Where("customer_email = ? OR customer_phone = ?", emailOrPhone, emailOrPhone)
+	query := r.db.Model(&model.Order{}).Where("email = ? OR phone = ?", emailOrPhone, emailOrPhone)
 
 	// Đếm tổng số bản ghi
 	if err := query.Count(&total).Error; err != nil {
@@ -328,7 +338,7 @@ func (r *OrderRepo) GetByEmailOrPhone(emailOrPhone string, page, limit int) ([]m
 		Preload("Creator").
 		Preload("OrderItems").
 		Preload("OrderItems.Product").
-		Where("customer_email = ? OR customer_phone = ?", emailOrPhone, emailOrPhone).
+		Where("email = ? OR phone = ?", emailOrPhone, emailOrPhone).
 		Order("created_at DESC").
 		Offset(offset).
 		Limit(limit).
@@ -358,7 +368,7 @@ func (r *OrderRepo) GetGuestOrderStats() (map[string]interface{}, error) {
 	// Doanh thu từ đơn của khách vãng lai
 	var guestRevenue float64
 	if err := r.db.Model(&model.Order{}).
-		Where("is_guest_order = ? AND payment_status = ?", true, "paid").
+		Where("is_guest_order = ? AND payment_method = ?", true, "paid").
 		Select("SUM(final_amount)").
 		Scan(&guestRevenue).Error; err != nil {
 		return nil, err
@@ -390,7 +400,7 @@ func (r *OrderRepo) GetAllWithFilters(page, limit int, status, paymentStatus, or
 		query = query.Where("status = ?", status)
 	}
 	if paymentStatus != "" {
-		query = query.Where("payment_status = ?", paymentStatus)
+		query = query.Where("payment_method = ?", paymentStatus)
 	}
 	if orderType != "" {
 		query = query.Where("order_type = ?", orderType)

@@ -46,14 +46,14 @@ func (h *OrderHandler) CreateOrder(c *gin.Context) {
 	// Nếu người dùng chưa đăng nhập, input.UserID sẽ là nil (đơn hàng khách)
 
 	// Tạo số đơn hàng duy nhất
-	orderNumber := h.generateUniqueOrderNumber()
+	orderCode := h.generateUniqueOrderCode()
 
 	// Tính tổng tiền
 	var totalAmount float64 = 0
 	var orderItems []model.OrderItem
 
 	for _, item := range input.Items {
-		// Lấy thông tin sản phẩm
+		// Lấy thông tin sản phẩm (nếu cần kiểm tra tồn kho)
 		product, err := h.productRepo.GetByID(item.ProductID)
 		if err != nil {
 			helpers.ErrorResponse(c, http.StatusBadRequest, "Không tìm thấy sản phẩm", err)
@@ -67,13 +67,13 @@ func (h *OrderHandler) CreateOrder(c *gin.Context) {
 			return
 		}
 
-		itemTotal := float64(item.Quantity) * product.Price
+		itemTotal := float64(item.Quantity) * item.Price
 		totalAmount += itemTotal
 
 		orderItems = append(orderItems, model.OrderItem{
 			ProductID: item.ProductID,
 			Quantity:  item.Quantity,
-			Price:     product.Price,
+			Price:     item.Price,
 			Total:     itemTotal,
 		})
 	}
@@ -92,7 +92,7 @@ func (h *OrderHandler) CreateOrder(c *gin.Context) {
 	// Tạo đơn hàng
 	order := model.Order{
 		UserID:          input.UserID,
-		OrderNumber:     orderNumber,
+		OrderCode:     orderCode,
 		Status:          "pending",
 		PaymentStatus:   "pending",
 		PaymentMethod:   input.PaymentMethod,
@@ -101,9 +101,9 @@ func (h *OrderHandler) CreateOrder(c *gin.Context) {
 		FinalAmount:     finalAmount,
 		DiscountCode:    input.DiscountCode,
 		Address:         input.Address,
-		CustomerName:    input.CustomerName,
-		CustomerPhone:   input.CustomerPhone,
-		CustomerEmail:   input.CustomerEmail,
+		Name:    input.Name,
+		Phone:   input.Phone,
+		Email:   input.Email,
 		Notes:           input.Notes,
 		IsGuestOrder:    isGuestOrder,
 		OrderItems:      orderItems,
@@ -331,15 +331,15 @@ func (h *OrderHandler) GetOrderStats(c *gin.Context) {
 	})
 }
 
-func (h *OrderHandler) generateUniqueOrderNumber() string {
+func (h *OrderHandler) generateUniqueOrderCode() string {
 	for {
 		timestamp := time.Now().Format("20060102150405")
 		randomNum := rand.Intn(9999)
-		orderNumber := fmt.Sprintf("ORD-%s-%04d", timestamp, randomNum)
+		orderCode := fmt.Sprintf("ORD-%s-%04d", timestamp, randomNum)
 		
-		exists, _ := h.orderRepo.CheckOrderNumberExists(orderNumber)
+		exists, _ := h.orderRepo.CheckOrderCodeExists(orderCode)
 		if !exists {
-			return orderNumber
+			return orderCode
 		}
 	}
 }
@@ -395,13 +395,13 @@ func (h *OrderHandler) LookupGuestOrders(c *gin.Context) {
 
 // TrackOrderByNumber lấy đơn hàng theo số đơn hàng (endpoint công khai)
 func (h *OrderHandler) TrackOrderByNumber(c *gin.Context) {
-	orderNumber := c.Param("order_number")
-	if orderNumber == "" {
+	orderCode := c.Param("order_code")
+	if orderCode == "" {
 		helpers.ErrorResponse(c, http.StatusBadRequest, "Số đơn hàng là bắt buộc", nil)
 		return
 	}
 
-	order, err := h.orderRepo.GetByOrderNumber(orderNumber)
+	order, err := h.orderRepo.GetByOrderCode(orderCode)
 	if err != nil {
 		if err.Error() == "order not found" {
 			helpers.ErrorResponse(c, http.StatusNotFound, "Không tìm thấy đơn hàng", err)
@@ -442,7 +442,7 @@ func (h *OrderHandler) AdminCreateOrder(c *gin.Context) {
 	}
 
 	// Tạo số đơn hàng duy nhất theo định dạng WebShop-DDMMYYNNN
-	orderNumber, err := h.orderRepo.GenerateOrderNumberForDate(time.Now())
+	orderCode, err := h.orderRepo.GenerateOrderCodeForDate(time.Now())
 	if err != nil {
 		helpers.ErrorResponse(c, http.StatusInternalServerError, "Không thể tạo mã đơn hàng", err)
 		return
@@ -452,24 +452,27 @@ func (h *OrderHandler) AdminCreateOrder(c *gin.Context) {
 	var totalAmount float64 = 0
 	var orderItems []model.OrderItem
 
-	for _, productID := range input.ProductIDs {
-		// Lấy thông tin sản phẩm
-		product, err := h.productRepo.GetByID(productID)
+	for _, item := range input.Products {
+		// Lấy thông tin sản phẩm nếu cần kiểm tra tồn kho
+
+		product, err := h.productRepo.GetByID(item.ProductID)
 		if err != nil {
-			helpers.ErrorResponse(c, http.StatusBadRequest, 
-				fmt.Sprintf("Không tìm thấy sản phẩm với ID: %s", productID), err)
+			helpers.ErrorResponse(c, http.StatusBadRequest, fmt.Sprintf("Không tìm thấy sản phẩm với ID: %s", item.ProductID), err)
+			return
+		}
+		// Kiểm tra tồn kho
+		if product.Stock < item.Quantity {
+			helpers.ErrorResponse(c, http.StatusBadRequest, fmt.Sprintf("Không đủ hàng tồn kho cho sản phẩm %s", product.Name), nil)
 			return
 		}
 
-		// Mặc định số lượng là 1 (có thể mở rộng sau)
-		quantity := 1
-		itemTotal := float64(quantity) * product.Price
+		// Có thể kiểm tra tồn kho nếu muốn
+		itemTotal := float64(item.Quantity) * item.Price
 		totalAmount += itemTotal
-
 		orderItems = append(orderItems, model.OrderItem{
-			ProductID: productID,
-			Quantity:  quantity,
-			Price:     product.Price,
+			ProductID: item.ProductID,
+			Quantity:  item.Quantity,
+			Price:     item.Price,
 			Total:     itemTotal,
 		})
 	}
@@ -487,8 +490,8 @@ func (h *OrderHandler) AdminCreateOrder(c *gin.Context) {
 		UserID:          nil, // Admin tạo đơn không gắn với user cụ thể
 		CreatorID:       &input.CreatorID,
 		CreatorName:     input.CreatorName,
-		OrderNumber:     orderNumber,
-		Status:          input.Status,
+		OrderCode:     orderCode,
+		Status:          func() string { if input.Status == "new" { return "pending" } else { return input.Status } }(),
 		PaymentStatus:   paymentStatus,
 		PaymentMethod:   input.PaymentMethod,
 		TotalAmount:     totalAmount,
@@ -496,9 +499,9 @@ func (h *OrderHandler) AdminCreateOrder(c *gin.Context) {
 		FinalAmount:     finalAmount,
 		DiscountCode:    "",
 		Address:         input.Address,
-		CustomerName:    input.CustomerName,
-		CustomerPhone:   input.Phone,
-		CustomerEmail:   input.Email,
+		Name:    input.Name,
+		Phone:   input.Phone,
+		Email:   input.Email,
 		Notes:           input.Note,
 		IsGuestOrder:    true, // Admin tạo đơn được coi là guest order
 		OrderType:       input.OrderType,
@@ -608,8 +611,8 @@ func (h *OrderHandler) AdminUpdateOrder(c *gin.Context) {
 	// Tạo map updates chỉ với các trường được cung cấp
 	updates := make(map[string]interface{})
 
-	if input.CustomerName != nil {
-		updates["name"] = *input.CustomerName
+	if input.Name != nil {
+		updates["name"] = *input.Name
 	}
 	if input.Phone != nil {
 		updates["phone"] = *input.Phone
@@ -618,7 +621,7 @@ func (h *OrderHandler) AdminUpdateOrder(c *gin.Context) {
 		updates["email"] = *input.Email
 	}
 	if input.Address != nil {
-		updates["address"] = *input.Address
+		updates["shipping_address"] = *input.Address
 	}
 	if input.Note != nil {
 		updates["notes"] = *input.Note
@@ -653,6 +656,23 @@ func (h *OrderHandler) AdminUpdateOrder(c *gin.Context) {
 		} else {
 			updates["payment_status"] = "pending"
 		}
+	}
+
+	if input.Products != nil && len(input.Products) > 0 {
+		// Xóa toàn bộ order_items cũ
+		h.orderRepo.DeleteOrderItems(id)
+		// Thêm lại order_items mới
+		var orderItems []model.OrderItem
+		for _, item := range input.Products {
+			orderItems = append(orderItems, model.OrderItem{
+				OrderID:   id,
+				ProductID: item.ProductID,
+				Quantity:  item.Quantity,
+				Price:     item.Price,
+				Total:     float64(item.Quantity) * item.Price,
+			})
+		}
+		h.orderRepo.BulkInsertOrderItems(orderItems)
 	}
 
 	if len(updates) == 0 {
