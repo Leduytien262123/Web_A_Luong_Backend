@@ -40,14 +40,14 @@ func SetupAdminRoutes(router *gin.Engine) {
 	managerRoutes.Use(utils.AdminMiddleware())
 	{
 		// Quản lý người dùng
-		managerRoutes.POST("/users", adminHandler.CreateUser)
 		managerRoutes.GET("/users", adminHandler.GetAllUsers)
-		managerRoutes.GET("/users/:id", adminHandler.GetUserByID)
-		managerRoutes.PUT("/users/:id", adminHandler.UpdateUser)
-		managerRoutes.GET("/users/role/:role", adminHandler.GetUsersByRole)
-		managerRoutes.PUT("/users/:id/role", adminHandler.AssignUserRole)
-		managerRoutes.PUT("/users/:id/status", adminHandler.ToggleUserStatus)
-		managerRoutes.DELETE("/users/:id", adminHandler.DeleteUser)
+		managerRoutes.POST("/user", adminHandler.CreateUser)
+		managerRoutes.GET("/user/:id", adminHandler.GetUserByID)
+		managerRoutes.PUT("/user/:id", adminHandler.UpdateUser)
+		managerRoutes.GET("/user/role/:role", adminHandler.GetUsersByRole)
+		managerRoutes.PUT("/user/:id/role", adminHandler.AssignUserRole)
+		managerRoutes.PUT("/user/:id/status", adminHandler.ToggleUserStatus)
+		managerRoutes.DELETE("/user/:id", adminHandler.DeleteUser)
 		
 		// Thống kê người dùng
 		managerRoutes.GET("/stats/users", adminHandler.GetUserStats)
@@ -80,10 +80,21 @@ func SetupAdminRoutes(router *gin.Engine) {
 
 		// Quản lý mã giảm giá
 		managerRoutes.GET("/discounts", discountHandler.GetDiscounts)
-		managerRoutes.GET("/discount/:code", discountHandler.GetDiscountByCode)
+		managerRoutes.GET("/discount/:id", discountHandler.GetDiscountByID) // Chi tiết mã giảm giá theo ID
+		managerRoutes.GET("/discount/code/:code", discountHandler.GetDiscountByCode) // Chi tiết mã giảm giá theo code
 		managerRoutes.POST("/discount", discountHandler.CreateDiscount)
 		managerRoutes.PUT("/discount/:id", discountHandler.UpdateDiscount)
 		managerRoutes.DELETE("/discount/:id", discountHandler.DeleteDiscount)
+		
+		// API pause/resume mã giảm giá
+		managerRoutes.PUT("/discount/:id/pause", discountHandler.PauseDiscount) // Tạm dừng mã giảm giá
+		managerRoutes.PUT("/discount/:id/resume", discountHandler.ResumeDiscount) // Tiếp tục mã giảm giá
+		
+		// API mới cho hệ thống mã giảm giá nâng cao
+		managerRoutes.POST("/discount/validate", discountHandler.ValidateDiscount) // Validate mã giảm giá
+		managerRoutes.POST("/discount/apply", discountHandler.ApplyDiscountToOrder)
+		managerRoutes.GET("/discount/product/:product_id", discountHandler.GetDiscountsByProduct)
+		managerRoutes.GET("/discount/category/:category_id", discountHandler.GetDiscountsByCategory)
 
 		// Quản lý tin tức
 		managerRoutes.GET("/news", newsHandler.GetNews)

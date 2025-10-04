@@ -21,7 +21,7 @@ func (r *UserRepository) CreateUser(user *model.User) error {
 
 func (r *UserRepository) GetUserByID(id uuid.UUID) (*model.User, error) {
 	var user model.User
-	err := r.db.First(&user, "id = ?", id).Error
+	err := r.db.Preload("Addresses").First(&user, "id = ?", id).Error
 	if err != nil {
 		return nil, err
 	}
@@ -60,26 +60,29 @@ func (r *UserRepository) GetAllUsers() ([]model.User, error) {
 	return users, err
 }
 
-// GetAllUsersWithPagination lấy tất cả người dùng có phân trang
-func (r *UserRepository) GetAllUsersWithPagination(page, limit int) ([]model.User, int64, error) {
-	var users []model.User
-	var total int64
-
-	// Đếm tổng số bản ghi
-	if err := r.db.Model(&model.User{}).Count(&total).Error; err != nil {
-		return nil, 0, err
-	}
-
-	// Tính offset
-	offset := (page - 1) * limit
-
-	// Lấy danh sách người dùng
-	err := r.db.Order("created_at DESC").
-		Offset(offset).
-		Limit(limit).
-		Find(&users).Error
-
-	return users, total, err
+func (r *UserRepository) GetUsersByRolesWithPagination(roles []string, name string, phone string, email string, page, limit int) ([]model.User, int64, error) {
+    var users []model.User
+    var total int64
+    db := r.db.Model(&model.User{})
+    if len(roles) > 0 {
+        db = db.Where("role IN ?", roles)
+    }
+    if name != "" {
+            db = db.Where("full_name ILIKE ?", name)
+        }
+    if phone != "" {
+			db = db.Where("phone ILIKE ?", phone)
+		}
+	if email != "" {
+			db = db.Where("email ILIKE ?", email)
+		}
+    if err := db.Count(&total).Error; err != nil {
+        return nil, 0, err
+    }
+    offset := (page - 1) * limit
+    err := db.Order("CASE WHEN role = 'owner' THEN 0 ELSE 1 END, created_at DESC").
+        Offset(offset).Limit(limit).Find(&users).Error
+    return users, total, err
 }
 
 func (r *UserRepository) IsUsernameExists(username string) bool {
@@ -178,4 +181,8 @@ func (r *UserRepository) CheckUserCanManage(managerID, targetID uuid.UUID) (bool
 	// Gợi ý: có thể dùng gói consts để kiểm tra vai trò
 	return manager.Role == "owner" && target.Role != "owner" || 
 		   manager.Role == "admin" && (target.Role == "member" || target.Role == "user"), nil
+}
+
+func (r *UserRepository) DeleteAllAddressesOfUser(userID uuid.UUID) error {
+	return r.db.Where("user_id = ?", userID).Delete(&model.Address{}).Error
 }

@@ -19,6 +19,7 @@ func SetupUserRoutes(router *gin.Engine) {
 	discountHandler := handle.NewDiscountHandler()
 	tagHandler := handle.NewTagHandler()
 	newsCategoryHandler := handle.NewNewsCategoryHandler()
+	addressHandler := handle.NewAddressHandler()
 
 	// Routes công khai - không cần xác thực
 	public := router.Group("/api")
@@ -80,6 +81,9 @@ func SetupUserRoutes(router *gin.Engine) {
 			publicDiscounts.GET("/active", discountHandler.GetDiscounts) // Lấy mã giảm giá đang hoạt động
 			publicDiscounts.POST("/validate", discountHandler.ValidateDiscount) // Kiểm tra mã giảm giá
 		}
+
+		// Địa chỉ công khai - chỉ có API lấy theo số điện thoại
+		public.GET("/addresses", addressHandler.GetAddressesByPhone)
 
 		// Đơn hàng công khai (cho khách vãng lai)
 		publicOrders := public.Group("/public/orders")

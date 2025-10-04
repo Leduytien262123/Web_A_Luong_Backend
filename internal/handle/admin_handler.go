@@ -7,6 +7,7 @@ import (
 	"backend/internal/repo"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -15,38 +16,50 @@ import (
 )
 
 type AdminHandler struct {
-	userRepo *repo.UserRepository
+	userRepo    *repo.UserRepository
+	addressRepo *repo.AddressRepo
 }
 
 func NewAdminHandler(userRepo *repo.UserRepository) *AdminHandler {
-	return &AdminHandler{userRepo: userRepo}
+	return &AdminHandler{
+		userRepo:    userRepo,
+		addressRepo: repo.NewAddressRepo(),
+	}
 }
 
 func (h *AdminHandler) GetAllUsers(c *gin.Context) {
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
+    page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+    limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
+    roleQuery := c.Query("role")
+    name := c.Query("name")         // nhận giá trị name
+    phone := c.Query("phone")           // nhận giá trị phone
+	email := c.Query("email")           // nhận giá trị email
 
-	users, total, err := h.userRepo.GetAllUsersWithPagination(page, limit)
-	if err != nil {
-		helpers.ErrorResponse(c, http.StatusInternalServerError, consts.MSG_INTERNAL_ERROR, err)
-		return
-	}
+    var roles []string
+    if roleQuery != "" {
+        roles = strings.Split(roleQuery, ",")
+    }
+    users, total, err := h.userRepo.GetUsersByRolesWithPagination(roles, name, phone, email, page, limit)
+    if err != nil {
+        helpers.ErrorResponse(c, http.StatusInternalServerError, consts.MSG_INTERNAL_ERROR, err)
+        return
+    }
 
-	var response []model.UserResponse
-	for _, user := range users {
-		response = append(response, user.ToResponse())
-	}
+    var response []model.UserResponse
+    for _, user := range users {
+        response = append(response, user.ToResponse())
+    }
 
-	result := map[string]interface{}{
-		"users": response,
-		"pagination": map[string]interface{}{
-			"page":  page,
-			"limit": limit,
-			"total": total,
-		},
-	}
+    result := map[string]interface{}{
+        "users": response,
+        "pagination": map[string]interface{}{
+            "page":  page,
+            "limit": limit,
+            "total": total,
+        },
+    }
 
-	helpers.SuccessResponse(c, consts.MSG_SUCCESS, result)
+    helpers.SuccessResponse(c, consts.MSG_SUCCESS, result)
 }
 
 func (h *AdminHandler) GetUserByID(c *gin.Context) {
@@ -240,6 +253,26 @@ func (h *AdminHandler) CreateUser(c *gin.Context) {
 		return
 	}
 
+	// Nếu có addresses từ FE thì lưu toàn bộ địa chỉ cho user
+	if input.Addresses != nil && len(input.Addresses) > 0 {
+		var addresses []model.Address
+		for i, addr := range input.Addresses {
+			addresses = append(addresses, model.Address{
+				UserID:       user.ID,
+				Name:         user.FullName,
+				Phone:        user.Phone,
+				AddressLine1: addr,
+				AddressLine2: "",
+				City:         "N/A",
+				State:        "N/A",
+				PostalCode:   "000000",
+				Country:      "Vietnam",
+				IsDefault:    i == 0,
+			})
+		}
+		h.addressRepo.BulkCreateAddresses(user.ID, addresses)
+	}
+
 	c.JSON(http.StatusCreated, helpers.Response{
 		Success: true,
 		Message: "Tạo người dùng thành công",
@@ -422,8 +455,8 @@ func (h *AdminHandler) UpdateUser(c *gin.Context) {
 		helpers.ErrorResponse(c, http.StatusBadRequest, "ID người dùng không hợp lệ", err)
 		return
 	}
-	
-	var input model.UpdateUserInput
+
+	var input model.AdminUserUpdateInput
 	if err := c.ShouldBindJSON(&input); err != nil {
 		helpers.BadRequestResponse(c, consts.MSG_VALIDATION_ERROR)
 		return
@@ -439,12 +472,20 @@ func (h *AdminHandler) UpdateUser(c *gin.Context) {
 		return
 	}
 
+	// Chỉ owner mới được sửa thông tin cho tài khoản owner
+	if user.Role == "owner" {
+		currentUserRole, exists := c.Get("user_role")
+		if !exists || currentUserRole != "owner" {
+			helpers.ErrorResponse(c, http.StatusForbidden, "Chỉ owner mới được sửa thông tin cho tài khoản owner", nil)
+			return
+		}
+	}
+
 	// Cập nhật các trường
 	if input.FullName != "" {
 		user.FullName = input.FullName
 	}
 	if input.Email != "" && input.Email != user.Email {
-		// Kiểm tra xem email đã tồn tại chưa
 		if h.userRepo.IsEmailExists(input.Email) {
 			helpers.ErrorResponse(c, http.StatusBadRequest, consts.MSG_EMAIL_EXISTS, nil)
 			return
@@ -453,6 +494,37 @@ func (h *AdminHandler) UpdateUser(c *gin.Context) {
 	}
 	if input.Avatar != "" {
 		user.Avatar = input.Avatar
+	}
+	if input.Phone != "" {
+		user.Phone = input.Phone
+	}
+	// Không cho phép cập nhật role nếu là owner hoặc user
+	if (user.Role == "owner" || user.Role == "user") && input.Role != "" && input.Role != user.Role {
+		helpers.ErrorResponse(c, http.StatusForbidden, "Không thể cập nhật role của tài khoản owner hoặc user", nil)
+		return
+	}
+	if input.Role != "" && user.Role != "owner" && user.Role != "user" {
+		user.Role = input.Role
+	}
+	
+	// Cập nhật addresses nếu có - xóa toàn bộ cũ, thêm mới
+	if input.Addresses != nil && len(input.Addresses) > 0 {
+		var addresses []model.Address
+		for i, addr := range input.Addresses {
+			addresses = append(addresses, model.Address{
+				UserID:       userID,
+				Name:         user.FullName,
+				Phone:        user.Phone,
+				AddressLine1: addr,
+				AddressLine2: "",
+				City:         "N/A",
+				State:        "N/A",
+				PostalCode:   "000000",
+				Country:      "Vietnam",
+				IsDefault:    i == 0,
+			})
+		}
+		h.addressRepo.BulkCreateAddresses(userID, addresses)
 	}
 
 	if err := h.userRepo.UpdateUser(user); err != nil {

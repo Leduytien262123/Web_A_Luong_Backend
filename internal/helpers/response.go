@@ -1,6 +1,7 @@
 package helpers
 
 import (
+	"encoding/json"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -55,4 +56,12 @@ func NotFoundResponse(c *gin.Context, message string) {
 
 func InternalErrorResponse(c *gin.Context, message string, err error) {
 	ErrorResponse(c, http.StatusInternalServerError, message, err)
+}
+
+// StructToMap chuyển struct sang map[string]interface{}
+func StructToMap(obj interface{}) map[string]interface{} {
+	var m map[string]interface{}
+	data, _ := json.Marshal(obj)
+	json.Unmarshal(data, &m)
+	return m
 }

@@ -72,6 +72,7 @@ type CreateUserInput struct {
 	FullName string `json:"full_name" binding:"max=100"`
 	Avatar   string `json:"avatar" binding:"max=500"`
 	Role     string `json:"role" binding:"required,oneof=admin member"`
+	Addresses []string `json:"addresses"` // Thêm trường này để nhận mảng địa chỉ từ FE
 }
 
 type UpdateUserRoleInput struct {
@@ -90,34 +91,69 @@ type UpdateUserInput struct {
 	Avatar   string `json:"avatar" binding:"max=500"`
 }
 
+type AdminUserUpdateInput struct {
+    Role      string   `json:"role" binding:"required,oneof=owner admin user member"`
+    CreatorID uuid.UUID `json:"creator_id" binding:"required"`
+    FullName  string   `json:"full_name" binding:"max=100"`
+    Phone     string   `json:"phone" binding:"max=20"`
+    Email     string   `json:"email" binding:"required,email,max=100"`
+    Addresses []string `json:"addresses"`
+    Avatar    string   `json:"avatar"`
+}
+
 type LoginInput struct {
 	Username string `json:"username" binding:"required"`
 	Password string `json:"password" binding:"required"`
 }
 
-type UserResponse struct {
-	ID        uuid.UUID `json:"id"`
-	Username  string    `json:"username"`
-	Email     string    `json:"email"`
-	FullName  string    `json:"full_name"`
-	Avatar    string    `json:"avatar"`
-	Role      string    `json:"role"`
-	IsActive  bool      `json:"is_active"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+// SimpleAddressResponse cho địa chỉ đơn giản (deprecated - sử dụng AddressResponse thay thế)
+type SimpleAddressResponse struct {
+	Address string `json:"address"`
 }
 
-// ToResponse converts User to UserResponse
+type UserResponse struct {
+	ID                uuid.UUID         `json:"id"`
+	Username          string            `json:"username"`
+	Email             string            `json:"email"`
+	Phone             string            `json:"phone"`
+	FullName          string            `json:"full_name"`
+	Addresses         []map[string]string `json:"addresses"`  // Trả về đúng dạng FE yêu cầu
+	Avatar            string            `json:"avatar"`
+	Role              string            `json:"role"`
+	IsActive          bool              `json:"is_active"`
+	TotalOrders       int               `json:"total_orders"`
+	CompletedOrders   int               `json:"completed_orders"`
+	TotalSpent        float64           `json:"total_spent"`
+	LastOrderAt       *time.Time        `json:"last_order_at"`
+	CreatedAt         time.Time         `json:"created_at"`
+	UpdatedAt         time.Time         `json:"updated_at"`
+}
+
 func (u *User) ToResponse() UserResponse {
-	return UserResponse{
-		ID:        u.ID,
-		Username:  u.Username,
-		Email:     u.Email,
-		FullName:  u.FullName,
-		Avatar:    u.Avatar,
-		Role:      u.Role,
-		IsActive:  u.IsActive,
-		CreatedAt: u.CreatedAt,
-		UpdatedAt: u.UpdatedAt,
+	response := UserResponse{
+		ID:              u.ID,
+		Username:        u.Username,
+		Email:           u.Email,
+		Phone:           u.Phone,
+		FullName:        u.FullName,
+		Avatar:          u.Avatar,
+		Role:            u.Role,
+		IsActive:        u.IsActive,
+		TotalOrders:     u.TotalOrders,
+		CompletedOrders: u.CompletedOrders,
+		TotalSpent:      u.TotalSpent,
+		LastOrderAt:     u.LastOrderAt,
+		CreatedAt:       u.CreatedAt,
+		UpdatedAt:       u.UpdatedAt,
 	}
+
+	if len(u.Addresses) > 0 {
+		var addresses []map[string]string
+		for _, addr := range u.Addresses {
+			addresses = append(addresses, map[string]string{"address": addr.AddressLine1})
+		}
+		response.Addresses = addresses
+	}
+
+	return response
 }

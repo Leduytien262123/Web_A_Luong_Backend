@@ -108,6 +108,7 @@ type AdminOrderInput struct {
 	Phone          string      `json:"phone" binding:"required"`
 	Email          string      `json:"email" binding:"required,email"`
 	Address        string      `json:"address" binding:"required"`
+	Addresses      []string    `json:"addresses"` // nhận mảng địa chỉ từ FE
 	Note           string      `json:"note"`
 	DiscountCode   *string     `json:"discount_code"`
 	ShippingFee    float64     `json:"shipping_fee"`
@@ -122,6 +123,7 @@ type AdminOrderUpdateInput struct {
 	Phone          *string  `json:"phone"`
 	Email          *string  `json:"email"`
 	Address        *string  `json:"address"`
+	Addresses      []string `json:"addresses"` // nhận mảng địa chỉ từ FE
 	Note           *string  `json:"note"`
 	DiscountCode   *string  `json:"discount_code"`
 	ShippingFee    *float64 `json:"shipping_fee"`
@@ -189,6 +191,7 @@ type OrderDetailResponse struct {
 	UpdatedAt     time.Time          `json:"updated_at"`
 	Customer      CustomerInfo       `json:"customer"`
 	Products      []ProductDetailInfo `json:"products"`
+	Addresses     []map[string]string `json:"addresses"`
 	Items         []ItemInfo         `json:"items"`
 	Creator       *CreatorInfo       `json:"creator,omitempty"`
 	InfoOrder     OrderInfo          `json:"info_order"`
@@ -272,6 +275,8 @@ func (o *Order) ToResponse() OrderResponse {
 		}
 	}
 
+
+
 	return response
 }
 
@@ -335,6 +340,13 @@ func (o *Order) ToDetailResponse() OrderDetailResponse {
 			}
 
 			response.Products = append(response.Products, prod) // ghi chú: thêm vào mảng products
+		}
+	}
+
+	// Lấy danh sách địa chỉ của user nếu có
+	if o.User != nil && len(o.User.Addresses) > 0 {
+		for _, addr := range o.User.Addresses {
+			response.Addresses = append(response.Addresses, map[string]string{"address": addr.AddressLine1})
 		}
 	}
 

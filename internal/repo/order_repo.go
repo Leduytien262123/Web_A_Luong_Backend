@@ -13,15 +13,17 @@ import (
 
 type OrderRepo struct {
 	db *gorm.DB
+	addressRepo *AddressRepo
 }
 
 func NewOrderRepo() *OrderRepo {
 	return &OrderRepo{
-		db: app.GetDB(),
+		db: app.DB,
+		addressRepo: NewAddressRepo(),
 	}
 }
 
-// Create tạo mới một đơn hàng với logic tự động tạo user
+// Create tạo mới một đơn hàng với logic tự động tạo user và áp dụng mã giảm giá
 func (r *OrderRepo) Create(order *model.Order) error {
 	return r.db.Transaction(func(tx *gorm.DB) error {
 		// Nếu không có UserID nhưng có thông tin , tự động tạo user mới
@@ -59,9 +61,66 @@ func (r *OrderRepo) Create(order *model.Order) error {
 			}
 		}
 		
+		// Xử lý mã giảm giá nếu có
+		if order.DiscountCode != "" && order.UserID != nil {
+			discountRepo := NewDiscountRepo(tx)
+			
+			// Lấy thông tin mã giảm giá
+			discount, err := discountRepo.GetByCode(order.DiscountCode)
+			if err != nil {
+				return errors.New("invalid discount code")
+			}
+			
+			// Kiểm tra mã giảm giá có hợp lệ không
+			if !discount.CanApply(order.TotalAmount) {
+				return errors.New("discount cannot be applied to this order")
+			}
+			
+			// Kiểm tra user có thể sử dụng mã này không
+			if !discount.CanUserUse(*order.UserID, tx) {
+				return errors.New("user has exceeded usage limit for this discount")
+			}
+			
+			// Kiểm tra sản phẩm có được áp dụng mã giảm giá không (nếu có items)
+			if len(order.OrderItems) > 0 {
+				hasApplicableProduct := false
+				for _, item := range order.OrderItems {
+					if discount.CheckProductApplicable(item.ProductID, tx) {
+						hasApplicableProduct = true
+						break
+					}
+				}
+				if !hasApplicableProduct {
+					return errors.New("discount code cannot be applied to any products in this order")
+				}
+			}
+			
+			// Tính toán số tiền giảm giá
+			discountAmount := discount.CalculateDiscount(order.TotalAmount)
+			order.DiscountAmount = discountAmount
+			order.FinalAmount = order.TotalAmount - discountAmount + order.ShippingAmount
+		}
+		
 		// Tạo order
 		if err := tx.Create(order).Error; err != nil {
 			return err
+		}
+		
+		// Ghi lại việc sử dụng mã giảm giá nếu có
+		if order.DiscountCode != "" && order.UserID != nil {
+			discountRepo := NewDiscountRepo(tx)
+			discount, err := discountRepo.GetByCode(order.DiscountCode)
+			if err == nil {
+				// Ghi lại việc sử dụng
+				if err := discountRepo.RecordUserUsage(*order.UserID, discount.ID, order.ID); err != nil {
+					return err
+				}
+				
+				// Tăng used_count
+				if err := discountRepo.IncrementUsedCount(discount.ID); err != nil {
+					return err
+				}
+			}
 		}
 		
 		// Cập nhật thống kê user nếu có UserID
@@ -75,31 +134,10 @@ func (r *OrderRepo) Create(order *model.Order) error {
 	})
 }
 
-// Xóa toàn bộ order_items của một đơn hàng
-func (r *OrderRepo) DeleteOrderItems(orderID uuid.UUID) error {
-    return r.db.Where("order_id = ?", orderID).Delete(&model.OrderItem{}).Error
-}
-
-// Thêm nhiều order_items mới cho một đơn hàng
-func (r *OrderRepo) BulkInsertOrderItems(items []model.OrderItem) error {
-    return r.db.Create(&items).Error
-}
-
-// updateUserOrderStats cập nhật thống kê đơn hàng của user
-func (r *OrderRepo) updateUserOrderStats(tx *gorm.DB, userID uuid.UUID, orderAmount float64, orderCount int) error {
-	updates := map[string]interface{}{
-		"total_orders": gorm.Expr("total_orders + ?", orderCount),
-		"total_spent":  gorm.Expr("total_spent + ?", orderAmount),
-		"last_order_at": time.Now(),
-	}
-	
-	return tx.Model(&model.User{}).Where("id = ?", userID).Updates(updates).Error
-}
-
 // GetByID lấy đơn hàng theo ID kèm dữ liệu liên quan
 func (r *OrderRepo) GetByID(id uuid.UUID) (*model.Order, error) {
 	var order model.Order
-	err := r.db.Preload("User").
+	err := r.db.Preload("User.Addresses").Preload("User").
 		Preload("Creator").
 		Preload("OrderItems").
 		Preload("OrderItems.Product").
@@ -116,7 +154,7 @@ func (r *OrderRepo) GetByID(id uuid.UUID) (*model.Order, error) {
 // GetByOrderCode lấy đơn hàng theo mã đơn
 func (r *OrderRepo) GetByOrderCode(orderCode string) (*model.Order, error) {
 	var order model.Order
-	err := r.db.Preload("User").
+	err := r.db.Preload("User.Addresses").Preload("User").
 		Preload("Creator").
 		Preload("OrderItems").
 		Preload("OrderItems.Product").
@@ -189,45 +227,24 @@ func (r *OrderRepo) Update(order *model.Order) error {
 	return r.db.Save(order).Error
 }
 
-// UpdateStatus cập nhật trạng thái đơn hàng và thống kê user
+// UpdateStatus cập nhật trạng thái đơn hàng
 func (r *OrderRepo) UpdateStatus(id uuid.UUID, status string) error {
-	return r.db.Transaction(func(tx *gorm.DB) error {
-		// Lấy thông tin order hiện tại
-		var order model.Order
-		if err := tx.Where("id = ?", id).First(&order).Error; err != nil {
-			return err
-		}
-		
-		updates := map[string]interface{}{
-			"status": status,
-		}
+	updates := map[string]interface{}{
+		"status": status,
+	}
 
-		// Ghi nhận thời gian cho một số trạng thái cụ thể
-		now := time.Now()
-		switch status {
-		case "shipped":
-			updates["shipped_at"] = &now
-		case "delivered":
-			updates["delivered_at"] = &now
-			// Cập nhật completed_orders khi đơn hàng được giao thành công
-			if order.UserID != nil {
-				if err := tx.Model(&model.User{}).Where("id = ?", order.UserID).
-					Update("completed_orders", gorm.Expr("completed_orders + 1")).Error; err != nil {
-					return err
-				}
-			}
-		case "cancelled":
-			updates["cancelled_at"] = &now
-			// Trừ lại thống kê nếu đơn hàng bị hủy
-			if order.UserID != nil {
-				if err := r.updateUserOrderStats(tx, *order.UserID, -order.FinalAmount, -1); err != nil {
-					return err
-				}
-			}
-		}
+	// Ghi nhận thời gian cho một số trạng thái cụ thể
+	now := time.Now()
+	switch status {
+	case "shipped":
+		updates["shipped_at"] = &now
+	case "delivered":
+		updates["delivered_at"] = &now
+	case "cancelled":
+		updates["cancelled_at"] = &now
+	}
 
-		return tx.Model(&model.Order{}).Where("id = ?", id).Updates(updates).Error
-	})
+	return r.db.Model(&model.Order{}).Where("id = ?", id).Updates(updates).Error
 }
 
 // UpdatePaymentStatus cập nhật trạng thái thanh toán
@@ -236,7 +253,6 @@ func (r *OrderRepo) UpdatePaymentStatus(id uuid.UUID, paymentStatus string) erro
 }
 
 // GenerateOrderCodeForDate tạo mã đơn hàng theo định dạng WebShop-DDMMYYNNN
-// Ví dụ: WebShop-180925001 (18/09/25 + sequence 001)
 func (r *OrderRepo) GenerateOrderCodeForDate(t time.Time) (string, error) {
 	datePart := t.Format("020106") // ddmmyy
 	prefix := fmt.Sprintf("WebShop-%s", datePart)
@@ -245,7 +261,6 @@ func (r *OrderRepo) GenerateOrderCodeForDate(t time.Time) (string, error) {
 	err := r.db.Where("order_code LIKE ?", prefix+"%").Order("order_code DESC").Limit(1).First(&lastOrder).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			// Không có đơn nào cho ngày hôm nay, bắt đầu từ 1
 			return prefix + "001", nil
 		}
 		return "", err
@@ -255,11 +270,7 @@ func (r *OrderRepo) GenerateOrderCodeForDate(t time.Time) (string, error) {
 	suffix := lastOrder.OrderCode[len(prefix):]
 	var lastSeq int
 	if suffix != "" {
-		_, err := fmt.Sscanf(suffix, "%d", &lastSeq)
-		if err != nil {
-			// Nếu parse lỗi, fallback start 1
-			lastSeq = 0
-		}
+		fmt.Sscanf(suffix, "%d", &lastSeq)
 	}
 
 	nextSeq := lastSeq + 1
@@ -267,7 +278,7 @@ func (r *OrderRepo) GenerateOrderCodeForDate(t time.Time) (string, error) {
 	if nextSeq <= 999 {
 		seqStr = fmt.Sprintf("%03d", nextSeq)
 	} else {
-		seqStr = fmt.Sprintf("%d", nextSeq) // cho phép >999
+		seqStr = fmt.Sprintf("%d", nextSeq)
 	}
 
 	return prefix + seqStr, nil
@@ -322,7 +333,6 @@ func (r *OrderRepo) GetByEmailOrPhone(emailOrPhone string, page, limit int) ([]m
 	var orders []model.Order
 	var total int64
 
-	// Xây dựng truy vấn tìm theo email hoặc số điện thoại
 	query := r.db.Model(&model.Order{}).Where("email = ? OR phone = ?", emailOrPhone, emailOrPhone)
 
 	// Đếm tổng số bản ghi
@@ -368,7 +378,7 @@ func (r *OrderRepo) GetGuestOrderStats() (map[string]interface{}, error) {
 	// Doanh thu từ đơn của khách vãng lai
 	var guestRevenue float64
 	if err := r.db.Model(&model.Order{}).
-		Where("is_guest_order = ? AND payment_method = ?", true, "paid").
+		Where("is_guest_order = ? AND payment_status = ?", true, "paid").
 		Select("SUM(final_amount)").
 		Scan(&guestRevenue).Error; err != nil {
 		return nil, err
@@ -380,7 +390,51 @@ func (r *OrderRepo) GetGuestOrderStats() (map[string]interface{}, error) {
 
 // AdminUpdate cập nhật đơn hàng bởi admin
 func (r *OrderRepo) AdminUpdate(id uuid.UUID, updates map[string]interface{}) error {
-	return r.db.Model(&model.Order{}).Where("id = ?", id).Updates(updates).Error
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		// Lấy thông tin đơn hàng hiện tại
+		var order model.Order
+		if err := tx.Where("id = ?", id).First(&order).Error; err != nil {
+			return err
+		}
+		
+		// Cập nhật đơn hàng
+		if err := tx.Model(&model.Order{}).Where("id = ?", id).Updates(updates).Error; err != nil {
+			return err
+		}
+		
+		// Lưu địa chỉ nếu có thay đổi thông tin địa chỉ và có UserID
+		if order.UserID != nil {
+			name := order.Name
+			phone := order.Phone
+			address := order.Address
+			
+			// Cập nhật từ updates nếu có
+			if newName, exists := updates["name"]; exists {
+				if nameStr, ok := newName.(string); ok {
+					name = nameStr
+				}
+			}
+			if newPhone, exists := updates["phone"]; exists {
+				if phoneStr, ok := newPhone.(string); ok {
+					phone = phoneStr
+				}
+			}
+			if newAddress, exists := updates["shipping_address"]; exists {
+				if addressStr, ok := newAddress.(string); ok {
+					address = addressStr
+				}
+			}
+			
+			// Lưu địa chỉ mới nếu có thay đổi
+			if order.UserID != nil {
+				r.addressRepo.SaveAddressFromOrder(order.UserID, name, phone, address)
+			} else {
+				r.addressRepo.SaveAddressFromOrder(nil, name, phone, address)
+			}
+		}
+		
+		return nil
+	})
 }
 
 // Delete xóa đơn hàng (soft delete)
@@ -400,7 +454,7 @@ func (r *OrderRepo) GetAllWithFilters(page, limit int, status, paymentStatus, or
 		query = query.Where("status = ?", status)
 	}
 	if paymentStatus != "" {
-		query = query.Where("payment_method = ?", paymentStatus)
+		query = query.Where("payment_status = ?", paymentStatus)
 	}
 	if orderType != "" {
 		query = query.Where("order_type = ?", orderType)
@@ -415,15 +469,49 @@ func (r *OrderRepo) GetAllWithFilters(page, limit int, status, paymentStatus, or
 	offset := (page - 1) * limit
 
 	// Sử dụng lại query và thêm preload + phân trang
-	q := query
-	err := q.Preload("User").
+	err := r.db.Model(&model.Order{}).
+		Preload("User").
 		Preload("Creator").
 		Preload("OrderItems").
 		Preload("OrderItems.Product").
+		Where(query.Statement.SQL.String(), query.Statement.Vars...).
 		Order("created_at DESC").
 		Offset(offset).
 		Limit(limit).
 		Find(&orders).Error
 
 	return orders, total, err
+}
+
+// DeleteOrderItems xóa toàn bộ order_items của một đơn hàng
+func (r *OrderRepo) DeleteOrderItems(orderID uuid.UUID) error {
+	return r.db.Where("order_id = ?", orderID).Delete(&model.OrderItem{}).Error
+}
+
+// BulkInsertOrderItems thêm nhiều order_items mới cho một đơn hàng
+func (r *OrderRepo) BulkInsertOrderItems(items []model.OrderItem) error {
+	return r.db.Create(&items).Error
+}
+
+// UpdateOrderAddresses cập nhật địa chỉ đơn hàng (method placeholder)
+func (r *OrderRepo) UpdateOrderAddresses(orderID uuid.UUID, addresses []model.Address) error {
+	// Có thể implement nếu cần lưu multiple addresses cho order
+	return nil
+}
+
+// DeleteAllAddressesOfOrder xóa toàn bộ địa chỉ của đơn hàng (method placeholder)
+func (r *OrderRepo) DeleteAllAddressesOfOrder(orderID uuid.UUID) error {
+	// Có thể implement nếu cần
+	return nil
+}
+
+// updateUserOrderStats cập nhật thống kê đơn hàng của user
+func (r *OrderRepo) updateUserOrderStats(tx *gorm.DB, userID uuid.UUID, orderAmount float64, orderCount int) error {
+	updates := map[string]interface{}{
+		"total_orders": gorm.Expr("total_orders + ?", orderCount),
+		"total_spent":  gorm.Expr("total_spent + ?", orderAmount),
+		"last_order_at": time.Now(),
+	}
+	
+	return tx.Model(&model.User{}).Where("id = ?", userID).Updates(updates).Error
 }

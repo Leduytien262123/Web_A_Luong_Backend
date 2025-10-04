@@ -38,10 +38,12 @@ func (h *OrderHandler) CreateOrder(c *gin.Context) {
 
 	// Cố gắng lấy user_id từ context (sẽ là nil đối với đơn hàng khách)
 	userID, exists := c.Get("user_id")
+	var userIDPtr *uuid.UUID
 	if exists && userID != nil {
 		// Nếu người dùng đã đăng nhập, sử dụng ID của họ
 		userIDValue := userID.(uuid.UUID)
-		input.UserID = &userIDValue
+		userIDPtr = &userIDValue
+		input.UserID = userIDPtr
 	}
 	// Nếu người dùng chưa đăng nhập, input.UserID sẽ là nil (đơn hàng khách)
 
@@ -125,6 +127,10 @@ func (h *OrderHandler) CreateOrder(c *gin.Context) {
 	if input.UserID != nil {
 		h.cartRepo.ClearCart(*input.UserID)
 	}
+	
+	// Lưu địa chỉ vào hệ thống nếu số điện thoại chưa tồn tại
+	addressRepo := repo.NewAddressRepo()
+	addressRepo.SaveAddressFromOrder(userIDPtr, input.Name, input.Phone, input.Address)
 
 	// Tải đơn hàng đã tạo với thông tin chi tiết
 	createdOrder, err := h.orderRepo.GetByID(order.ID)
@@ -338,7 +344,7 @@ func (h *OrderHandler) generateUniqueOrderCode() string {
 		orderCode := fmt.Sprintf("ORD-%s-%04d", timestamp, randomNum)
 		
 		exists, _ := h.orderRepo.CheckOrderCodeExists(orderCode)
-		if !exists {
+		if (!exists) {
 			return orderCode
 		}
 	}
@@ -517,6 +523,27 @@ func (h *OrderHandler) AdminCreateOrder(c *gin.Context) {
 		return
 	}
 
+	// Nếu có userID và có mảng addresses từ FE thì lưu toàn bộ địa chỉ
+	if order.UserID != nil && len(input.Addresses) > 0 {
+		var addresses []model.Address
+		for i, addr := range input.Addresses {
+			addresses = append(addresses, model.Address{
+				UserID:       *order.UserID,
+				Name:         order.Name,
+				Phone:        order.Phone,
+				AddressLine1: addr,
+				AddressLine2: "",
+				City:         "N/A",
+				State:        "N/A",
+				PostalCode:   "000000",
+				Country:      "Vietnam",
+				IsDefault:    i == 0,
+			})
+		}
+		addressRepo := repo.NewAddressRepo()
+		addressRepo.BulkCreateAddresses(*order.UserID, addresses)
+	}
+
 	// Tải đơn hàng đã tạo với thông tin chi tiết
 	createdOrder, err := h.orderRepo.GetByID(order.ID)
 	if err != nil {
@@ -690,6 +717,27 @@ func (h *OrderHandler) AdminUpdateOrder(c *gin.Context) {
 	if err != nil {
 		helpers.ErrorResponse(c, http.StatusInternalServerError, "Không thể lấy đơn hàng đã cập nhật", err)
 		return
+	}
+
+	// Nếu có địa chỉ mới từ FE và đơn hàng liên kết với user
+	if updatedOrder.UserID != nil && len(input.Addresses) > 0 {
+		var addresses []model.Address
+		for i, addr := range input.Addresses {
+			addresses = append(addresses, model.Address{
+				UserID:       *updatedOrder.UserID,
+				Name:         updatedOrder.Name,
+				Phone:        updatedOrder.Phone,
+				AddressLine1: addr,
+				AddressLine2: "",
+				City:         "N/A",
+				State:        "N/A",
+				PostalCode:   "000000",
+				Country:      "Vietnam",
+				IsDefault:    i == 0,
+			})
+		}
+		addressRepo := repo.NewAddressRepo()
+		addressRepo.BulkCreateAddresses(*updatedOrder.UserID, addresses)
 	}
 
 	c.JSON(http.StatusOK, helpers.Response{
