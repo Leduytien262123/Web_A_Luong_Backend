@@ -685,10 +685,11 @@ func (h *OrderHandler) AdminUpdateOrder(c *gin.Context) {
 		}
 	}
 
-	if input.Products != nil && len(input.Products) > 0 {
-		// Xóa toàn bộ order_items cũ
-		h.orderRepo.DeleteOrderItems(id)
-		// Thêm lại order_items mới
+	if len(input.Products) > 0 {
+		if err := h.orderRepo.DeleteOrderItems(id); err != nil {
+			helpers.ErrorResponse(c, http.StatusInternalServerError, "Không thể xóa order items cũ", err)
+			return
+		}
 		var orderItems []model.OrderItem
 		for _, item := range input.Products {
 			orderItems = append(orderItems, model.OrderItem{
@@ -699,7 +700,12 @@ func (h *OrderHandler) AdminUpdateOrder(c *gin.Context) {
 				Total:     float64(item.Quantity) * item.Price,
 			})
 		}
-		h.orderRepo.BulkInsertOrderItems(orderItems)
+		if len(orderItems) > 0 {
+			if err := h.orderRepo.BulkInsertOrderItems(orderItems); err != nil {
+				helpers.ErrorResponse(c, http.StatusInternalServerError, "Không thể thêm order items mới", err)
+				return
+			}
+		}
 	}
 
 	if len(updates) == 0 {
