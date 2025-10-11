@@ -5,10 +5,12 @@ import (
 	"backend/internal/helpers"
 	"backend/internal/model"
 	"backend/internal/repo"
+	"encoding/json"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
 
@@ -46,13 +48,27 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 
+	var avatarJSON datatypes.JSON
+	// If Avatar slice provided, marshal to JSON array, otherwise use empty JSON array
+	if len(input.Avatar) > 0 {
+		if b, err := json.Marshal(input.Avatar); err == nil {
+			avatarJSON = datatypes.JSON(b)
+		} else {
+			// Fallback to empty JSON array if marshal fails
+			avatarJSON = datatypes.JSON([]byte(`[]`))
+		}
+	} else {
+		// Default to empty JSON array when no avatar provided
+		avatarJSON = datatypes.JSON([]byte(`[]`))
+	}
+
 	// Tạo người dùng
 	user := model.User{
 		Username: input.Username,
 		Email:    input.Email,
 		Password: hashedPassword,
 		FullName: input.FullName,
-		Avatar:   input.Avatar,
+		Avatar:   avatarJSON,
 		Role:     consts.ROLE_USER,
 	}
 
@@ -172,8 +188,14 @@ func (h *AuthHandler) UpdateProfile(c *gin.Context) {
 		}
 		user.Email = input.Email
 	}
-	if input.Avatar != "" {
-		user.Avatar = input.Avatar
+	// Nếu avatar được cung cấp (mảng), marshal và lưu dưới dạng JSON
+	if len(input.Avatar) > 0 {
+		if b, err := json.Marshal(input.Avatar); err == nil {
+			user.Avatar = datatypes.JSON(b)
+		} else {
+			// Fallback to empty JSON array if marshal fails
+			user.Avatar = datatypes.JSON([]byte(`[]`))
+		}
 	}
 
 	if err := h.userRepo.UpdateUser(user); err != nil {

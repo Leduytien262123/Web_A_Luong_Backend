@@ -5,6 +5,7 @@ import (
 	"backend/internal/helpers"
 	"backend/internal/model"
 	"backend/internal/repo"
+	"encoding/json"
 	"net/http"
 	"strconv"
 	"strings"
@@ -12,6 +13,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
+	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
 
@@ -238,12 +240,24 @@ func (h *AdminHandler) CreateUser(c *gin.Context) {
 	}
 
 	// Tạo người dùng
+	var avatarJSON datatypes.JSON
+	// If Avatar slice provided, marshal to JSON array, otherwise use empty JSON array
+	if len(input.Avatar) > 0 {
+		if b, err := json.Marshal(input.Avatar); err == nil {
+			avatarJSON = datatypes.JSON(b)
+		} else {
+			avatarJSON = datatypes.JSON([]byte(`[]`))
+		}
+	} else {
+		avatarJSON = datatypes.JSON([]byte(`[]`))
+	}
+
 	user := model.User{
 		Username: input.Username,
 		Email:    input.Email,
 		Password: string(hashedPassword),
 		FullName: input.FullName,
-		Avatar:   input.Avatar,
+		Avatar:   avatarJSON,
 		Role:     input.Role,
 		IsActive: true,
 	}
@@ -254,7 +268,7 @@ func (h *AdminHandler) CreateUser(c *gin.Context) {
 	}
 
 	// Nếu có addresses từ FE thì lưu toàn bộ địa chỉ cho user
-	if input.Addresses != nil && len(input.Addresses) > 0 {
+	if len(input.Addresses) > 0 {
 		var addresses []model.Address
 		for i, addr := range input.Addresses {
 			addresses = append(addresses, model.Address{
@@ -265,7 +279,7 @@ func (h *AdminHandler) CreateUser(c *gin.Context) {
 				AddressLine2: "",
 				City:         "N/A",
 				State:        "N/A",
-				PostalCode:   "000000",
+				PostalCode:   "100000",
 				Country:      "Vietnam",
 				IsDefault:    i == 0,
 			})
@@ -492,8 +506,13 @@ func (h *AdminHandler) UpdateUser(c *gin.Context) {
 		}
 		user.Email = input.Email
 	}
-	if input.Avatar != "" {
-		user.Avatar = input.Avatar
+	// Update avatar from admin input (avatar is []Avatar)
+	if len(input.Avatar) > 0 {
+		if b, err := json.Marshal(input.Avatar); err == nil {
+			user.Avatar = datatypes.JSON(b)
+		} else {
+			user.Avatar = datatypes.JSON([]byte(`[]`))
+		}
 	}
 	if input.Phone != "" {
 		user.Phone = input.Phone
@@ -508,7 +527,7 @@ func (h *AdminHandler) UpdateUser(c *gin.Context) {
 	}
 	
 	// Cập nhật addresses nếu có - xóa toàn bộ cũ, thêm mới
-	if input.Addresses != nil && len(input.Addresses) > 0 {
+	if len(input.Addresses) > 0 {
 		var addresses []model.Address
 		for i, addr := range input.Addresses {
 			addresses = append(addresses, model.Address{

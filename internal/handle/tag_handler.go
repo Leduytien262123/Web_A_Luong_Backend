@@ -4,11 +4,15 @@ import (
 	"backend/internal/helpers"
 	"backend/internal/model"
 	"backend/internal/repo"
+	"encoding/json"
+	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"gorm.io/datatypes"
 )
 
 type TagHandler struct {
@@ -29,43 +33,86 @@ func (h *TagHandler) CreateTag(c *gin.Context) {
 		return
 	}
 
-	// Kiểm tra slug đã tồn tại chưa
-	if exists, err := h.tagRepo.CheckSlugExists(input.Slug, uuid.Nil); err != nil {
+	// Chuẩn hóa slug
+	input.Slug = strings.ToLower(strings.ReplaceAll(strings.TrimSpace(input.Slug), " ", "-"))
+
+	// Kiểm tra xem slug đã tồn tại chưa
+	exists, err := h.tagRepo.CheckSlugExists(input.Slug, uuid.Nil)
+	if err != nil {
 		helpers.ErrorResponse(c, http.StatusInternalServerError, "Lỗi cơ sở dữ liệu", err)
 		return
-	} else if exists {
-		helpers.ErrorResponse(c, http.StatusBadRequest, "Slug đã tồn tại", nil)
+	}
+	if exists {
+		helpers.ErrorResponse(c, http.StatusConflict, "Slug đã tồn tại", errors.New("tag với slug này đã tồn tại"))
 		return
 	}
 
-	tag := &model.Tag{
-		Name:        input.Name,
-		Slug:        input.Slug,
-		Color:       input.Color,
-		Description: input.Description,
-		IsActive:    input.IsActive,
+	// Tạo model tag từ input
+	tag := model.Tag{
+		Name:         input.Name,
+		Slug:         input.Slug,
+		Description:  input.Description,
+		DisplayOrder: 0,
+		IsActive:     true,
+		UsageCount:   0,
 	}
 
-	// Set default color if not provided
-	if tag.Color == "" {
-		tag.Color = "#007bff"
+	if input.DisplayOrder != nil {
+		tag.DisplayOrder = *input.DisplayOrder
+	}
+	if input.IsActive != nil {
+		tag.IsActive = *input.IsActive
+	}
+	
+	// Marshal metadata và content sang JSON
+	if input.Metadata != nil {
+		metadataJSON, _ := json.Marshal(input.Metadata)
+		tag.Metadata = datatypes.JSON(metadataJSON)
+	}
+	if input.Content != nil {
+		contentJSON, _ := json.Marshal(input.Content)
+		tag.Content = datatypes.JSON(contentJSON)
 	}
 
-	if err := h.tagRepo.Create(tag); err != nil {
+	if err := h.tagRepo.Create(&tag); err != nil {
 		helpers.ErrorResponse(c, http.StatusInternalServerError, "Không thể tạo tag", err)
 		return
 	}
 
-	helpers.SuccessResponse(c, "Tạo tag thành công", tag.ToResponse())
+	c.JSON(http.StatusCreated, helpers.Response{
+		Success: true,
+		Message: "Tạo tag thành công",
+		Data:    tag.ToResponse(),
+	})
 }
 
-// GetTags lấy danh sách tags
+// GetTags lấy danh sách tags với phân trang
 func (h *TagHandler) GetTags(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
 	activeOnly := c.Query("active_only") == "true"
+	search := c.Query("search")
 
-	tags, total, err := h.tagRepo.GetAll(page, limit, activeOnly)
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 || limit > 50 {
+		limit = 10
+	}
+
+	var tags []model.Tag
+	var total int64
+	var err error
+
+	if search != "" {
+		// Tìm kiếm tags
+		tags, err = h.tagRepo.SearchTags(search, limit)
+		total = int64(len(tags))
+	} else {
+		// Lấy tất cả tags với phân trang
+		tags, total, err = h.tagRepo.GetAll(page, limit, activeOnly)
+	}
+
 	if err != nil {
 		helpers.ErrorResponse(c, http.StatusInternalServerError, "Không thể lấy danh sách tags", err)
 		return
@@ -76,12 +123,15 @@ func (h *TagHandler) GetTags(c *gin.Context) {
 		responses = append(responses, tag.ToResponse())
 	}
 
+	totalPages := (total + int64(limit) - 1) / int64(limit)
+
 	response := map[string]interface{}{
 		"tags": responses,
 		"pagination": map[string]interface{}{
-			"page":  page,
-			"limit": limit,
-			"total": total,
+			"page":        page,
+			"limit":       limit,
+			"total":       total,
+			"total_pages": totalPages,
 		},
 	}
 
@@ -93,13 +143,17 @@ func (h *TagHandler) GetTagByID(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := uuid.Parse(idStr)
 	if err != nil {
-		helpers.ErrorResponse(c, http.StatusBadRequest, "ID tag không hợp lệ", err)
+		helpers.ErrorResponse(c, http.StatusBadRequest, "ID tag không hợp lệ", errors.New("ID tag phải là UUID hợp lệ"))
 		return
 	}
 
 	tag, err := h.tagRepo.GetByID(id)
 	if err != nil {
-		helpers.ErrorResponse(c, http.StatusNotFound, "Không tìm thấy tag", err)
+		if err.Error() == "tag not found" {
+			helpers.ErrorResponse(c, http.StatusNotFound, "Không tìm thấy tag", err)
+			return
+		}
+		helpers.ErrorResponse(c, http.StatusInternalServerError, "Lỗi cơ sở dữ liệu", err)
 		return
 	}
 
@@ -109,10 +163,18 @@ func (h *TagHandler) GetTagByID(c *gin.Context) {
 // GetTagBySlug lấy tag theo slug
 func (h *TagHandler) GetTagBySlug(c *gin.Context) {
 	slug := c.Param("slug")
+	if slug == "" {
+		helpers.ErrorResponse(c, http.StatusBadRequest, "Slug không hợp lệ", errors.New("slug không được để trống"))
+		return
+	}
 
 	tag, err := h.tagRepo.GetBySlug(slug)
 	if err != nil {
-		helpers.ErrorResponse(c, http.StatusNotFound, "Không tìm thấy tag", err)
+		if err.Error() == "tag not found" {
+			helpers.ErrorResponse(c, http.StatusNotFound, "Không tìm thấy tag", err)
+			return
+		}
+		helpers.ErrorResponse(c, http.StatusInternalServerError, "Lỗi cơ sở dữ liệu", err)
 		return
 	}
 
@@ -124,40 +186,63 @@ func (h *TagHandler) UpdateTag(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := uuid.Parse(idStr)
 	if err != nil {
-		helpers.ErrorResponse(c, http.StatusBadRequest, "ID tag không hợp lệ", err)
+		helpers.ErrorResponse(c, http.StatusBadRequest, "ID tag không hợp lệ", errors.New("ID tag phải là UUID hợp lệ"))
 		return
 	}
 
-	tag, err := h.tagRepo.GetByID(id)
-	if err != nil {
-		helpers.ErrorResponse(c, http.StatusNotFound, "Không tìm thấy tag", err)
-		return
-	}
-
-	var input model.TagInput
+	var input model.TagUpdateInput
 	if err := c.ShouldBindJSON(&input); err != nil {
 		helpers.ErrorResponse(c, http.StatusBadRequest, "Dữ liệu đầu vào không hợp lệ", err)
 		return
 	}
 
-	// Kiểm tra slug đã tồn tại chưa (trừ chính nó)
+	// Lấy tag hiện tại
+	tag, err := h.tagRepo.GetByID(id)
+	if err != nil {
+		if err.Error() == "tag not found" {
+			helpers.ErrorResponse(c, http.StatusNotFound, "Không tìm thấy tag", err)
+			return
+		}
+		helpers.ErrorResponse(c, http.StatusInternalServerError, "Lỗi cơ sở dữ liệu", err)
+		return
+	}
+
+	// Chuẩn hóa slug
+	input.Slug = strings.ToLower(strings.ReplaceAll(strings.TrimSpace(input.Slug), " ", "-"))
+
+	// Kiểm tra xem slug đã tồn tại chưa (loại trừ tag hiện tại)
 	if input.Slug != tag.Slug {
-		if exists, err := h.tagRepo.CheckSlugExists(input.Slug, id); err != nil {
+		exists, err := h.tagRepo.CheckSlugExists(input.Slug, id)
+		if err != nil {
 			helpers.ErrorResponse(c, http.StatusInternalServerError, "Lỗi cơ sở dữ liệu", err)
 			return
-		} else if exists {
-			helpers.ErrorResponse(c, http.StatusBadRequest, "Slug đã tồn tại", nil)
+		}
+		if exists {
+			helpers.ErrorResponse(c, http.StatusConflict, "Slug đã tồn tại", errors.New("tag khác với slug này đã tồn tại"))
 			return
 		}
 	}
 
-	// Cập nhật thông tin
+	// Cập nhật tag
 	tag.Name = input.Name
 	tag.Slug = input.Slug
 	tag.Description = input.Description
-	tag.IsActive = input.IsActive
-	if input.Color != "" {
-		tag.Color = input.Color
+	
+	if input.DisplayOrder != nil {
+		tag.DisplayOrder = *input.DisplayOrder
+	}
+	if input.IsActive != nil {
+		tag.IsActive = *input.IsActive
+	}
+	
+	// Marshal metadata và content sang JSON
+	if input.Metadata != nil {
+		metadataJSON, _ := json.Marshal(input.Metadata)
+		tag.Metadata = datatypes.JSON(metadataJSON)
+	}
+	if input.Content != nil {
+		contentJSON, _ := json.Marshal(input.Content)
+		tag.Content = datatypes.JSON(contentJSON)
 	}
 
 	if err := h.tagRepo.Update(tag); err != nil {
@@ -173,7 +258,18 @@ func (h *TagHandler) DeleteTag(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := uuid.Parse(idStr)
 	if err != nil {
-		helpers.ErrorResponse(c, http.StatusBadRequest, "ID tag không hợp lệ", err)
+		helpers.ErrorResponse(c, http.StatusBadRequest, "ID tag không hợp lệ", errors.New("ID tag phải là UUID hợp lệ"))
+		return
+	}
+
+	// Kiểm tra xem tag có tồn tại không
+	_, err = h.tagRepo.GetByID(id)
+	if err != nil {
+		if err.Error() == "tag not found" {
+			helpers.ErrorResponse(c, http.StatusNotFound, "Không tìm thấy tag", err)
+			return
+		}
+		helpers.ErrorResponse(c, http.StatusInternalServerError, "Lỗi cơ sở dữ liệu", err)
 		return
 	}
 
@@ -188,6 +284,9 @@ func (h *TagHandler) DeleteTag(c *gin.Context) {
 // GetPopularTags lấy tags phổ biến
 func (h *TagHandler) GetPopularTags(c *gin.Context) {
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
+	if limit < 1 || limit > 50 {
+		limit = 10
+	}
 
 	tags, err := h.tagRepo.GetPopularTags(limit)
 	if err != nil {
@@ -207,11 +306,14 @@ func (h *TagHandler) GetPopularTags(c *gin.Context) {
 func (h *TagHandler) SearchTags(c *gin.Context) {
 	keyword := c.Query("q")
 	if keyword == "" {
-		helpers.ErrorResponse(c, http.StatusBadRequest, "Từ khóa tìm kiếm không được để trống", nil)
+		helpers.ErrorResponse(c, http.StatusBadRequest, "Từ khóa tìm kiếm là bắt buộc", nil)
 		return
 	}
 
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
+	if limit < 1 || limit > 50 {
+		limit = 10
+	}
 
 	tags, err := h.tagRepo.SearchTags(keyword, limit)
 	if err != nil {
@@ -224,6 +326,12 @@ func (h *TagHandler) SearchTags(c *gin.Context) {
 		responses = append(responses, tag.ToResponse())
 	}
 
-	helpers.SuccessResponse(c, "Tìm kiếm tags thành công", responses)
+	response := map[string]interface{}{
+		"tags":    responses,
+		"keyword": keyword,
+		"total":   len(responses),
+	}
+
+	helpers.SuccessResponse(c, "Tìm kiếm tags thành công", response)
 }
 

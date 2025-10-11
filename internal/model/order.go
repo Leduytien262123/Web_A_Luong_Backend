@@ -8,7 +8,7 @@ import (
 )
 
 type Order struct {
-	ID               uuid.UUID      `json:"id" gorm:"type:char(36);primary_key"`
+	ID               uuid.UUID      `json:"id" gorm:"type:char(36);primaryKey"`
 	CreatorID        *uuid.UUID     `json:"creator_id" gorm:"type:char(36);index"`
 	CreatorName      string         `json:"creator_name" gorm:"size:255;index"`
 	OrderType        string         `json:"order_type" gorm:"size:50;index"`
@@ -48,7 +48,7 @@ func (o *Order) BeforeCreate(tx *gorm.DB) (err error) {
 }
 
 type OrderItem struct {
-	ID        uuid.UUID      `json:"id" gorm:"type:char(36);primary_key"`
+	ID        uuid.UUID      `json:"id" gorm:"type:char(36);primaryKey"`
 	OrderID   uuid.UUID      `json:"order_id" gorm:"type:char(36);not null;index"`
 	ProductID uuid.UUID      `json:"product_id" gorm:"type:char(36);not null;index"`
 	Quantity  int            `json:"quantity" gorm:"not null;default:1"`

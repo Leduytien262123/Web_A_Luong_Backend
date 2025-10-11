@@ -20,10 +20,14 @@ func SetupUserRoutes(router *gin.Engine) {
 	tagHandler := handle.NewTagHandler()
 	newsCategoryHandler := handle.NewNewsCategoryHandler()
 	addressHandler := handle.NewAddressHandler()
+	s3Handler := handle.NewS3Handler()
 
 	// Routes công khai - không cần xác thực
 	public := router.Group("/api")
 	{
+		 // S3 Upload công khai
+		public.POST("/upload/presigned", s3Handler.GetUploadUrl) // Presigned URL cho upload
+
 		// Danh mục sản phẩm công khai
 		publicCategories := public.Group("/categories")
 		{
@@ -71,8 +75,8 @@ func SetupUserRoutes(router *gin.Engine) {
 			publicTags.GET("/", tagHandler.GetTags)
 			publicTags.GET("/popular", tagHandler.GetPopularTags)
 			publicTags.GET("/search", tagHandler.SearchTags)
-			publicTags.GET("/:id", tagHandler.GetTagByID)
 			publicTags.GET("/slug/:slug", tagHandler.GetTagBySlug)
+			publicTags.GET("/:id", tagHandler.GetTagByID)
 		}
 
 		 // Mã giảm giá công khai
@@ -105,7 +109,11 @@ func SetupUserRoutes(router *gin.Engine) {
 	protected := router.Group("/api")
 	protected.Use(utils.AuthMiddleware())
 	{
-		// Giỏ hàng
+		 // S3 Upload cho user đã xác thực
+		protected.POST("/upload/presigned-auth", s3Handler.GetUploadUrl) // Presigned URL cho user đã xác thực
+		protected.DELETE("/upload/delete", s3Handler.DeleteS3Object) // Xóa file
+
+		 // Giỏ hàng
 		cartRoutes := protected.Group("/cart")
 		{
 			cartRoutes.GET("/", cartHandler.GetCart)

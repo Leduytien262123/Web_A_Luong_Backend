@@ -1,6 +1,7 @@
 package model
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
@@ -9,14 +10,14 @@ import (
 )
 
 type Category struct {
-	ID          uuid.UUID      `json:"id" gorm:"type:char(36);primary_key"`
+	ID          uuid.UUID      `json:"id" gorm:"type:char(36);primaryKey"`
 	Name        string         `json:"name" gorm:"not null;size:255;index"`
 	Description string         `json:"description" gorm:"type:text"`
 	Slug        string         `json:"slug" gorm:"unique;not null;size:255;index"`
 	IsActive    bool           `json:"is_active" gorm:"default:true;index"`
 	ShowOnMenu  bool           `json:"show_menu" gorm:"default:false"`
 	ShowOnHome  bool           `json:"show_home" gorm:"default:false"`
-	ShowOnFooter bool         `json:"show_footer" gorm:"default:false"`
+	ShowOnFooter bool          `json:"show_footer" gorm:"default:false"`
 	Metadata    datatypes.JSON `json:"metadata" gorm:"type:json"`
 	CreatedAt   time.Time      `json:"created_at" gorm:"autoCreateTime"`
 	UpdatedAt   time.Time      `json:"updated_at" gorm:"autoUpdateTime"`
@@ -27,10 +28,10 @@ type Category struct {
 }
 
 type CategoryMetadata struct {
-	MetaTitle       string    `json:"meta_title"`
-	MetaDescription string    `json:"meta_description"`
-	MetaImage       MetaImageCategory `json:"meta_image"`
-	MetaKeywords    string    `json:"meta_keywords"`
+	MetaTitle       string             `json:"meta_title"`
+	MetaDescription string             `json:"meta_description"`
+	MetaImage       []MetaImageCategory `json:"meta_image"` // Đổi thành array
+	MetaKeywords    string             `json:"meta_keywords"`
 }
 
 type MetaImageCategory struct {
@@ -63,22 +64,22 @@ type CategoryInput struct {
 }
 
 type CategoryResponse struct {
-	ID          uuid.UUID `json:"id"`
-	Name        string    `json:"name"`
-	Description string    `json:"description"`
-	Slug        string    `json:"slug"`
-	IsActive    bool      `json:"is_active"`
-	ShowOnMenu  bool      `json:"show_menu"`
-	ShowOnHome  bool      `json:"show_home"`
-	ShowOnFooter bool     `json:"show_footer"`
-	Metadata    datatypes.JSON `json:"metadata"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
+	ID          uuid.UUID          `json:"id"`
+	Name        string             `json:"name"`
+	Description string             `json:"description"`
+	Slug        string             `json:"slug"`
+	IsActive    bool               `json:"is_active"`
+	ShowOnMenu  bool               `json:"show_menu"`
+	ShowOnHome  bool               `json:"show_home"`
+	ShowOnFooter bool              `json:"show_footer"`
+	Metadata    *CategoryMetadata  `json:"metadata"` // Đổi từ datatypes.JSON sang *CategoryMetadata
+	CreatedAt   time.Time          `json:"created_at"`
+	UpdatedAt   time.Time          `json:"updated_at"`
 }
 
 // ToResponse chuyển Category thành CategoryResponse
 func (c *Category) ToResponse() CategoryResponse {
-	return CategoryResponse{
+	response := CategoryResponse{
 		ID:          c.ID,   
 		Name:        c.Name,
 		Description: c.Description,
@@ -87,8 +88,17 @@ func (c *Category) ToResponse() CategoryResponse {
 		ShowOnMenu:  c.ShowOnMenu,
 		ShowOnHome:  c.ShowOnHome,
 		ShowOnFooter: c.ShowOnFooter,
-		Metadata:     c.Metadata,
 		CreatedAt:   c.CreatedAt,
 		UpdatedAt:   c.UpdatedAt,
 	}
+
+	// Parse metadata từ JSON sang struct
+	if len(c.Metadata) > 0 {
+		var metadata CategoryMetadata
+		if err := json.Unmarshal(c.Metadata, &metadata); err == nil {
+			response.Metadata = &metadata
+		}
+	}
+
+	return response
 }

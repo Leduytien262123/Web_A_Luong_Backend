@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
 
@@ -43,6 +44,7 @@ func (r *OrderRepo) Create(order *model.Order) error {
 					Password: "auto_generated", // Có thể hash password mặc định hoặc để trống
 					Role:     "user",
 					IsActive: true,
+					Avatar:   datatypes.JSON([]byte(`[]`)), // Set default empty JSON array for avatar
 				}
 				
 				if err := tx.Create(&newUser).Error; err != nil {

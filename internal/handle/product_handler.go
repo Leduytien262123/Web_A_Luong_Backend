@@ -62,31 +62,42 @@ func (h *ProductHandler) CreateProduct(c *gin.Context) {
 	defaultMetadata := model.ProductMetadata{
 		MetaTitle:       "",
 		MetaDescription: "",
-		MetaImage:       model.MetaImageProduct{URL: "", Alt: ""},
+		MetaImage:       []model.MetaImageProduct{}, // Đổi thành empty array
 		MetaKeywords:    "",
 	}
 	metadataJSON, _ := json.Marshal(defaultMetadata)
 
 	product := model.Product{
 		Name:        input.Name,
+		// Bỏ Slug vì sẽ được tự động tạo trong BeforeCreate hook
 		Description: input.Description,
 		Price:       input.Price,
-		DiscountPrice: func() float64 {
-			if input.DiscountPrice != nil {
-				return *input.DiscountPrice
-			}
-			return 0
-		}(),
+		SalePrice:   input.DiscountPrice, 
 		SKU:         input.SKU,
 		Stock:       input.Stock,
 		CategoryID:  input.CategoryID,
-		IsActive:    true,
+		BrandID:     input.BrandID,
+		Weight:      func() *float64 { 
+			if input.Weight > 0 {
+				return &input.Weight
+			}
+			return nil
+		}(),
+		Dimensions:  input.Dimensions,
+		IsFeatured:  input.IsFeatured,
+		Status:      "active",
 		Metadata:    datatypes.JSON(metadataJSON),
 	}
 
 	if input.Metadata != nil {
 		metadataJSON, _ := json.Marshal(input.Metadata)
 		product.Metadata = datatypes.JSON(metadataJSON)
+	}
+
+	// Xử lý content nếu có
+	if input.Content != nil {
+		contentJSON, _ := json.Marshal(input.Content)
+		product.Content = datatypes.JSON(contentJSON)
 	}
 
 	if err := h.productRepo.Create(&product); err != nil {
@@ -275,20 +286,32 @@ func (h *ProductHandler) UpdateProduct(c *gin.Context) {
 
 	// Cập nhật sản phẩm
 	product.Name = input.Name
+	product.Slug = strings.ToLower(strings.ReplaceAll(input.Name, " ", "-")) // Update slug
 	product.Description = input.Description
 	product.Price = input.Price
-	product.DiscountPrice = func() float64 {
-		if input.DiscountPrice != nil {
-			return *input.DiscountPrice
-		}
-		return 0
-	}()
+	product.SalePrice = input.DiscountPrice // Sử dụng SalePrice thay vì DiscountPrice
 	product.SKU = input.SKU
 	product.Stock = input.Stock
 	product.CategoryID = input.CategoryID
+	product.BrandID = input.BrandID
+	product.Weight = func() *float64 { // Convert float64 to *float64
+		if input.Weight > 0 {
+			return &input.Weight
+		}
+		return nil
+	}()
+	product.Dimensions = input.Dimensions
+	product.IsFeatured = input.IsFeatured
+
 	if input.Metadata != nil {
 		metadataJSON, _ := json.Marshal(input.Metadata)
 		product.Metadata = datatypes.JSON(metadataJSON)
+	}
+
+	// Xử lý content nếu có
+	if input.Content != nil {
+		contentJSON, _ := json.Marshal(input.Content)
+		product.Content = datatypes.JSON(contentJSON)
 	}
 
 	if err := h.productRepo.Update(product); err != nil {

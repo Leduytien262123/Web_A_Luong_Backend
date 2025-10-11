@@ -41,7 +41,7 @@ func (r *NewsCategoryRepo) GetAll(page, limit int, activeOnly bool) ([]model.New
 
 	// Get with pagination
 	offset := (page - 1) * limit
-	err := query.Preload("Parent").Preload("Children").
+	err := query.
 		Order("sort_order ASC, created_at DESC").
 		Offset(offset).Limit(limit).Find(&categories).Error
 
@@ -51,7 +51,7 @@ func (r *NewsCategoryRepo) GetAll(page, limit int, activeOnly bool) ([]model.New
 // GetByID lấy danh mục tin tức theo ID
 func (r *NewsCategoryRepo) GetByID(id uuid.UUID) (*model.NewsCategory, error) {
 	var category model.NewsCategory
-	err := r.db.Preload("Parent").Preload("Children").
+	err := r.db.
 		Where("id = ?", id).First(&category).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -65,7 +65,7 @@ func (r *NewsCategoryRepo) GetByID(id uuid.UUID) (*model.NewsCategory, error) {
 // GetBySlug lấy danh mục tin tức theo slug
 func (r *NewsCategoryRepo) GetBySlug(slug string) (*model.NewsCategory, error) {
 	var category model.NewsCategory
-	err := r.db.Preload("Parent").Preload("Children").
+	err := r.db.
 		Where("slug = ? AND is_active = ?", slug, true).First(&category).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -86,11 +86,10 @@ func (r *NewsCategoryRepo) Delete(id uuid.UUID) error {
 	return r.db.Where("id = ?", id).Delete(&model.NewsCategory{}).Error
 }
 
-// GetTreeStructure lấy cấu trúc cây danh mục
+// GetTreeStructure lấy cấu trúc cây danh mục (bỏ preload Children)
 func (r *NewsCategoryRepo) GetTreeStructure() ([]model.NewsCategory, error) {
 	var categories []model.NewsCategory
-	err := r.db.Where("parent_id IS NULL AND is_active = ?", true).
-		Preload("Children", "is_active = ?", true).
+	err := r.db.Where("is_active = ?", true).
 		Order("sort_order ASC").Find(&categories).Error
 	return categories, err
 }

@@ -1,38 +1,39 @@
 package model
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
+	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
 
 type News struct {
-	ID           uuid.UUID      `json:"id" gorm:"type:char(36);primary_key"`
+	ID           uuid.UUID      `json:"id" gorm:"type:char(36);primaryKey"`
 	Title        string         `json:"title" gorm:"not null;size:255;index"`
 	Slug         string         `json:"slug" gorm:"unique;not null;size:255;index"`
 	Summary      string         `json:"summary" gorm:"type:text"`
-	Content      string         `json:"content" gorm:"type:longtext"`
 	ImageURL     string         `json:"image_url" gorm:"size:500"`
-	AuthorID     uuid.UUID      `json:"author_id" gorm:"type:char(36);not null;index"`
-	CategoryID   *uuid.UUID     `json:"category_id" gorm:"type:char(36);index"` // Liên kết với NewsCategory
+	CreatorID    uuid.UUID      `json:"creator_id" gorm:"type:char(36);not null;index"`
+	CategoryID   *uuid.UUID     `json:"category_id" gorm:"type:char(36);index"`
 	IsPublished  bool           `json:"is_published" gorm:"default:false;index"`
 	IsFeatured   bool           `json:"is_featured" gorm:"default:false;index"` // Tin nổi bật
 	PublishedAt  *time.Time     `json:"published_at"`
 	ViewCount    int            `json:"view_count" gorm:"default:0;index"`
 	LikeCount    int            `json:"like_count" gorm:"default:0;index"`
 	CommentCount int            `json:"comment_count" gorm:"default:0;index"`
-	MetaTitle    string         `json:"meta_title" gorm:"size:255"`
-	MetaDesc     string         `json:"meta_desc" gorm:"size:500"`
+	Metadata     datatypes.JSON `json:"metadata" gorm:"type:json"`
+	Content      datatypes.JSON `json:"content" gorm:"type:json"`
 	CreatedAt    time.Time      `json:"created_at" gorm:"autoCreateTime"`
 	UpdatedAt    time.Time      `json:"updated_at" gorm:"autoUpdateTime"`
 	DeletedAt    gorm.DeletedAt `json:"-" gorm:"index"`
 
 	// Quan hệ
-	Author     *User         `json:"author,omitempty" gorm:"foreignKey:AuthorID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT"`
+	Creator    *User         `json:"creator,omitempty" gorm:"foreignKey:CreatorID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT"`
 	Category   *NewsCategory `json:"category,omitempty" gorm:"foreignKey:CategoryID;constraint:OnUpdate:CASCADE,OnDelete:SET NULL"`
 	Tags       []Tag         `json:"tags,omitempty" gorm:"many2many:news_tags;"`
-	Categories []NewsCategory `json:"categories,omitempty" gorm:"many2many:news_category_associations;"` // Đổi tên bảng trung gian
+	Categories []NewsCategory `json:"categories,omitempty" gorm:"many2many:news_category_associations;"`
 }
 
 // BeforeCreate hook để tự động tạo UUID cho News
@@ -49,84 +50,140 @@ func (News) TableName() string {
 }
 
 type NewsInput struct {
-	Title       string      `json:"title" binding:"required,min=1,max=200"`
-	Slug        string      `json:"slug" binding:"required,min=1,max=200"`
-	Summary     string      `json:"summary" binding:"max=500"`
-	Content     string      `json:"content" binding:"required,min=1"`
-	ImageURL    string      `json:"image_url" binding:"max=500"`
-	CategoryID  *uuid.UUID  `json:"category_id"`
-	IsPublished bool        `json:"is_published"`
-	IsFeatured  bool        `json:"is_featured"`
-	TagIDs      []uuid.UUID `json:"tag_ids"` // Danh sách ID tags
-	CategoryIDs []uuid.UUID `json:"category_ids"` // Danh sách ID categories
-	MetaTitle   string      `json:"meta_title" binding:"max=200"`
-	MetaDesc    string      `json:"meta_description" binding:"max=300"`
+	Title       string                 `json:"title" binding:"required,min=1,max=200"`
+	Slug        string                 `json:"slug" binding:"required,min=1,max=200"`
+	CategoryID  *uuid.UUID             `json:"category_id"`
+	TagID       *uuid.UUID             `json:"tag_id"`
+	Status      string                 `json:"status" binding:"required,oneof=post draft"`
+	PublishedAt *time.Time             `json:"published_at"`
+	Description string                 `json:"description" binding:"max=500"`
+	Metadata    *NewsMetadata          `json:"metadata"`
+	Content     *NewsContent           `json:"content"`
+}
+
+type NewsMetadata struct {
+	MetaTitle       string           `json:"meta_title"`
+	MetaKeywords    string           `json:"meta_keywords"`
+	MetaDescription string           `json:"meta_description"`
+	MetaImage       []MetaImageNews  `json:"meta_image"` // Đổi thành array
+}
+
+type MetaImageNews struct {
+	URL string `json:"url"`
+	Alt string `json:"alt"`
+}
+
+type NewsContent struct {
+	CoverPhoto  []CoverPhotoNews `json:"cover_photo"`  
+	Images      []ImageNews      `json:"images"`       
+	Description string           `json:"description"`
+	Content     string           `json:"content"` // Thêm trường content
+}
+
+type CoverPhotoNews struct {
+	URL string `json:"url"`
+	Alt string `json:"alt"`
+}
+
+type ImageNews struct {
+	URL string `json:"url"`
+	Alt string `json:"alt"`
+}
+
+type CreatorResponse struct {
+	ID   uuid.UUID `json:"id"`
+	Name string    `json:"name"`
+}
+
+type NewsCategorySimpleResponse struct {
+	ID   uuid.UUID `json:"id"`
+	Name string    `json:"name"`
 }
 
 type NewsResponse struct {
-	ID           uuid.UUID                `json:"id"`
-	Title        string                   `json:"title"`
-	Slug         string                   `json:"slug"`
-	Summary      string                   `json:"summary"`
-	Content      string                   `json:"content"`
-	ImageURL     string                   `json:"image_url"`
-	AuthorID     uuid.UUID                `json:"author_id"`
-	CategoryID   *uuid.UUID               `json:"category_id"`
-	Author       *UserResponse            `json:"author,omitempty"`
-	Category     *NewsCategoryResponse    `json:"category,omitempty"`
-	Categories   []NewsCategoryResponse   `json:"categories,omitempty"`
-	Tags         []TagResponse            `json:"tags,omitempty"`
-	IsPublished  bool                     `json:"is_published"`
-	IsFeatured   bool                     `json://is_featured"`
-	PublishedAt  *time.Time               `json:"published_at"`
-	ViewCount    int                      `json:"view_count"`
-	LikeCount    int                      `json:"like_count"`
-	CommentCount int                      `json:"comment_count"`
-	MetaTitle    string                   `json:"meta_title"`
-	MetaDesc     string                   `json:"meta_description"`
-	CreatedAt    time.Time                `json:"created_at"`
-	UpdatedAt    time.Time                `json:"updated_at"`
+	ID           uuid.UUID                   `json:"id"`
+	Title        string                      `json:"title"`
+	Slug         string                      `json:"slug"`
+	CategoryID   *uuid.UUID                  `json:"category_id"`
+	TagID        *uuid.UUID                  `json:"tag_id"`
+	Status       string                      `json:"status"`
+	PublishedAt  *time.Time                  `json:"published_at"`
+	Description  string                      `json:"description"`
+	Metadata     *NewsMetadata               `json:"metadata"`
+	Content      *NewsContent                `json:"content"`
+	Creator      *CreatorResponse            `json:"creator,omitempty"`
+	Category     *NewsCategorySimpleResponse `json:"category,omitempty"`
+	Tags         []TagResponse               `json:"tags,omitempty"`
+	ViewCount    int                         `json:"view_count"`
+	LikeCount    int                         `json:"like_count"`
+	CommentCount int                         `json:"comment_count"`
+	CreatedAt    time.Time                   `json:"created_at"`
+	UpdatedAt    time.Time                   `json:"updated_at"`
 }
 
 // ToResponse chuyển News thành NewsResponse
 func (n *News) ToResponse() NewsResponse {
+	// Convert status from IsPublished boolean to string
+	status := "draft"
+	if n.IsPublished {
+		status = "post"
+	}
+
+	// Parse metadata JSON
+	var metadata *NewsMetadata
+	if len(n.Metadata) > 0 {
+		var meta NewsMetadata
+		if err := json.Unmarshal(n.Metadata, &meta); err == nil {
+			metadata = &meta
+		}
+	}
+
+	// Parse content JSON
+	var content *NewsContent
+	if len(n.Content) > 0 {
+		var cont NewsContent
+		if err := json.Unmarshal(n.Content, &cont); err == nil {
+			content = &cont
+		}
+	}
+
+	// Get tag_id from first tag if exists
+	var tagID *uuid.UUID
+	if len(n.Tags) > 0 {
+		tagID = &n.Tags[0].ID
+	}
+
 	response := NewsResponse{
 		ID:           n.ID,
 		Title:        n.Title,
 		Slug:         n.Slug,
-		Summary:      n.Summary,
-		Content:      n.Content,
-		ImageURL:     n.ImageURL,
-		AuthorID:     n.AuthorID,
 		CategoryID:   n.CategoryID,
-		IsPublished:  n.IsPublished,
-		IsFeatured:   n.IsFeatured,
+		TagID:        tagID,
+		Status:       status,
 		PublishedAt:  n.PublishedAt,
+		Description:  n.Summary,
+		Metadata:     metadata,
+		Content:      content,
 		ViewCount:    n.ViewCount,
 		LikeCount:    n.LikeCount,
 		CommentCount: n.CommentCount,
-		MetaTitle:    n.MetaTitle,
-		MetaDesc:     n.MetaDesc,
 		CreatedAt:    n.CreatedAt,
 		UpdatedAt:    n.UpdatedAt,
 	}
 
-	// Bao gồm thông tin tác giả nếu đã được nạp
-	if n.Author != nil {
-		authorResponse := n.Author.ToResponse()
-		response.Author = &authorResponse
+	// Bao gồm thông tin creator đơn giản nếu đã được nạp
+	if n.Creator != nil {
+		response.Creator = &CreatorResponse{
+			ID:   n.Creator.ID,
+			Name: n.Creator.FullName,
+		}
 	}
 
-	// Include main category if loaded
+	// Include main category đơn giản if loaded
 	if n.Category != nil {
-		categoryResponse := n.Category.ToResponse()
-		response.Category = &categoryResponse
-	}
-
-	// Include categories if loaded
-	if len(n.Categories) > 0 {
-		for _, category := range n.Categories {
-			response.Categories = append(response.Categories, category.ToResponse())
+		response.Category = &NewsCategorySimpleResponse{
+			ID:   n.Category.ID,
+			Name: n.Category.Name,
 		}
 	}
 
@@ -142,7 +199,12 @@ func (n *News) ToResponse() NewsResponse {
 
 // NewsCategory association table
 type NewsCategoryAssociation struct {
-	NewsID     uuid.UUID `gorm:"type:char(36);primaryKey"`
-	CategoryID uuid.UUID `gorm:"type:char(36);primaryKey"`
+	NewsID     uuid.UUID `gorm:"type:char(36);not null"`
+	CategoryID uuid.UUID `gorm:"type:char(36);not null"`
 	CreatedAt  time.Time `gorm:"autoCreateTime"`
+}
+
+// TableName specifies the table name
+func (NewsCategoryAssociation) TableName() string {
+	return "news_category_associations"
 }

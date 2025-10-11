@@ -7,8 +7,11 @@ import (
 	"net/http"
 	"strconv"
 
+	"encoding/json"
+
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"gorm.io/datatypes"
 )
 
 type NewsCategoryHandler struct {
@@ -38,24 +41,23 @@ func (h *NewsCategoryHandler) CreateNewsCategory(c *gin.Context) {
 		return
 	}
 
-	// Kiểm tra parent category nếu có
-	if input.ParentID != nil {
-		if _, err := h.newsCategoryRepo.GetByID(*input.ParentID); err != nil {
-			helpers.ErrorResponse(c, http.StatusBadRequest, "Danh mục cha không tồn tại", err)
-			return
-		}
-	}
-
 	category := &model.NewsCategory{
 		Name:        input.Name,
 		Slug:        input.Slug,
-		Description: input.Description,
-		ImageURL:    input.ImageURL,
-		ParentID:    input.ParentID,
-		SortOrder:   input.SortOrder,
+		SortOrder:   input.DisplayOrder, // Sử dụng SortOrder thay vì DisplayOrder
 		IsActive:    input.IsActive,
-		MetaTitle:   input.MetaTitle,
-		MetaDesc:    input.MetaDesc,
+	}
+
+	// Xử lý metadata nếu có
+	if input.Metadata != nil {
+		metadataJSON, _ := json.Marshal(input.Metadata)
+		category.Metadata = datatypes.JSON(metadataJSON)
+	}
+
+	// Xử lý content nếu có
+	if input.Content != nil {
+		contentJSON, _ := json.Marshal(input.Content)
+		category.Content = datatypes.JSON(contentJSON)
 	}
 
 	if err := h.newsCategoryRepo.Create(category); err != nil {
@@ -158,24 +160,23 @@ func (h *NewsCategoryHandler) UpdateNewsCategory(c *gin.Context) {
 		}
 	}
 
-	// Kiểm tra parent category nếu có
-	if input.ParentID != nil && *input.ParentID != id {
-		if _, err := h.newsCategoryRepo.GetByID(*input.ParentID); err != nil {
-			helpers.ErrorResponse(c, http.StatusBadRequest, "Danh mục cha không tồn tại", err)
-			return
-		}
-	}
-
 	// Cập nhật thông tin
 	category.Name = input.Name
 	category.Slug = input.Slug
-	category.Description = input.Description
-	category.ImageURL = input.ImageURL
-	category.ParentID = input.ParentID
-	category.SortOrder = input.SortOrder
+	category.SortOrder = input.DisplayOrder // Sử dụng SortOrder thay vì DisplayOrder
 	category.IsActive = input.IsActive
-	category.MetaTitle = input.MetaTitle
-	category.MetaDesc = input.MetaDesc
+
+	// Xử lý metadata nếu có
+	if input.Metadata != nil {
+		metadataJSON, _ := json.Marshal(input.Metadata)
+		category.Metadata = datatypes.JSON(metadataJSON)
+	}
+
+	// Xử lý content nếu có
+	if input.Content != nil {
+		contentJSON, _ := json.Marshal(input.Content)
+		category.Content = datatypes.JSON(contentJSON)
+	}
 
 	if err := h.newsCategoryRepo.Update(category); err != nil {
 		helpers.ErrorResponse(c, http.StatusInternalServerError, "Không thể cập nhật danh mục", err)

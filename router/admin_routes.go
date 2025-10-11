@@ -22,6 +22,7 @@ func SetupAdminRoutes(router *gin.Engine) {
 	reviewHandler := handle.NewReviewHandler()
 	tagHandler := handle.NewTagHandler()
 	newsCategoryHandler := handle.NewNewsCategoryHandler()
+	s3Handler := handle.NewS3Handler()
 
 	// Base admin group
 	admin := router.Group("/api/admin")
@@ -96,12 +97,19 @@ func SetupAdminRoutes(router *gin.Engine) {
 		managerRoutes.GET("/discount/product/:product_id", discountHandler.GetDiscountsByProduct)
 		managerRoutes.GET("/discount/category/:category_id", discountHandler.GetDiscountsByCategory)
 
-		// Quản lý tin tức
+		// Quản lý tin tức - sửa route paths cho nhất quán
 		managerRoutes.GET("/news", newsHandler.GetNews)
-		managerRoutes.GET("/new/:id", newsHandler.GetNewsByID)
-		managerRoutes.POST("/new", newsHandler.CreateNews)
-		managerRoutes.PUT("/new/:id", newsHandler.UpdateNews)
-		managerRoutes.DELETE("/new/:id", newsHandler.DeleteNews)
+		managerRoutes.GET("/new/:id", newsHandler.GetNewsByID)  // Sửa từ "/new/:id"
+		managerRoutes.GET("/new/slug/:slug", newsHandler.GetNewsBySlug)  // Thêm route get by slug
+		managerRoutes.POST("/new", newsHandler.CreateNews)     // Sửa từ "/new"
+		managerRoutes.PUT("/new/:id", newsHandler.UpdateNews)  // Sửa từ "/new/:id"
+		managerRoutes.DELETE("/new/:id", newsHandler.DeleteNews) // Sửa từ "/new/:id"
+		
+		// Thêm các API đặc biệt cho tin tức
+		managerRoutes.GET("/new/featured", newsHandler.GetFeaturedNews)
+		managerRoutes.GET("/new/latest", newsHandler.GetLatestNews)
+		managerRoutes.GET("/new/popular", newsHandler.GetPopularNews)
+		managerRoutes.GET("/new/search", newsHandler.SearchNews)
 
 		// Quản lý danh mục tin tức
 		managerRoutes.GET("/news-categories", newsCategoryHandler.GetNewsCategories)
@@ -113,7 +121,9 @@ func SetupAdminRoutes(router *gin.Engine) {
 
 		// Quản lý tags
 		managerRoutes.GET("/tags", tagHandler.GetTags)
+		managerRoutes.GET("/tags/popular", tagHandler.GetPopularTags)
 		managerRoutes.GET("/tag/search", tagHandler.SearchTags)
+		managerRoutes.GET("/tag/slug/:slug", tagHandler.GetTagBySlug)
 		managerRoutes.GET("/tag/:id", tagHandler.GetTagByID)
 		managerRoutes.POST("/tag", tagHandler.CreateTag)
 		managerRoutes.PUT("/tag/:id", tagHandler.UpdateTag)
@@ -123,5 +133,10 @@ func SetupAdminRoutes(router *gin.Engine) {
 		managerRoutes.GET("/reviews/latest", reviewHandler.GetLatestReviews)
 		managerRoutes.GET("/review/product/:product_id", reviewHandler.GetReviewsByProduct)
 		managerRoutes.PUT("/review/:id/toggle", reviewHandler.AdminToggleReviewStatus)
+
+		 // S3 Upload và Storage Management cho admin
+		managerRoutes.POST("/upload/s3", s3Handler.GetUploadUrl) // Tạo presigned URL để upload
+		managerRoutes.DELETE("/upload/delete", s3Handler.DeleteS3Object) // Xóa file từ S3
+		managerRoutes.GET("/storage/usage", s3Handler.GetS3BucketMemoryUsage) // Lấy thông tin dung lượng
 	}
 }

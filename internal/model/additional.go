@@ -8,7 +8,7 @@ import (
 )
 
 type Review struct {
-	ID        uuid.UUID      `json:"id" gorm:"type:char(36);primary_key"`
+	ID        uuid.UUID      `json:"id" gorm:"type:char(36);primaryKey"`
 	ProductID uuid.UUID      `json:"product_id" gorm:"type:char(36);not null;index"`
 	UserID    uuid.UUID      `json:"user_id" gorm:"type:char(36);not null;index"`
 	Rating    int            `json:"rating" gorm:"not null;check:rating >= 1 AND rating <= 5"`
@@ -33,7 +33,7 @@ func (r *Review) BeforeCreate(tx *gorm.DB) (err error) {
 }
 
 type Coupon struct {
-	ID               uuid.UUID      `json:"id" gorm:"type:char(36);primary_key"`
+	ID               uuid.UUID      `json:"id" gorm:"type:char(36);primaryKey"`
 	Code             string         `json:"code" gorm:"unique;not null;size:50;index"`
 	Name             string         `json:"name" gorm:"not null;size:200"`
 	Description      string         `json:"description" gorm:"size:500"`
@@ -60,7 +60,7 @@ func (c *Coupon) BeforeCreate(tx *gorm.DB) (err error) {
 }
 
 type Address struct {
-	ID           uuid.UUID      `json:"id" gorm:"type:char(36);primary_key"`
+	ID           uuid.UUID      `json:"id" gorm:"type:char(36);primaryKey"`
 	UserID       uuid.UUID      `json:"user_id" gorm:"type:char(36);not null;index"`
 	Name         string         `json:"name" gorm:"not null;size:100"`
 	Phone        string         `json:"phone" gorm:"not null;size:20"`
@@ -88,7 +88,7 @@ func (a *Address) BeforeCreate(tx *gorm.DB) (err error) {
 }
 
 type Brand struct {
-	ID          uuid.UUID      `json:"id" gorm:"type:char(36);primary_key"`
+	ID          uuid.UUID      `json:"id" gorm:"type:char(36);primaryKey"`
 	Name        string         `json:"name" gorm:"not null;size:100;index"`
 	Slug        string         `json:"slug" gorm:"unique;not null;size:100;index"`
 	Description string         `json:"description" gorm:"size:500"`
@@ -112,7 +112,7 @@ func (b *Brand) BeforeCreate(tx *gorm.DB) (err error) {
 }
 
 type ProductImage struct {
-	ID        uuid.UUID      `json:"id" gorm:"type:char(36);primary_key"`
+	ID        uuid.UUID      `json:"id" gorm:"type:char(36);primaryKey"`
 	ProductID uuid.UUID      `json:"product_id" gorm:"type:char(36);not null;index"`
 	ImageURL  string         `json:"image_url" gorm:"not null;size:500"`
 	AltText   string         `json:"alt_text" gorm:"size:200"`

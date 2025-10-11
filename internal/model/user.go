@@ -1,14 +1,16 @@
 package model
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
+	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
 
 type User struct {
-	ID                uuid.UUID      `json:"id" gorm:"type:char(36);primary_key"`
+	ID                uuid.UUID      `json:"id" gorm:"type:char(36);primaryKey"`
 	Username          string         `json:"username" gorm:"unique;not null;size:50;index"`
 	FullName          string         `json:"full_name" gorm:"not null;size:255"`
 	Email             string         `json:"email" gorm:"unique;not null;size:255;index"`
@@ -16,7 +18,7 @@ type User struct {
 	Phone             string         `json:"phone" gorm:"size:20;index"`
 	DateOfBirth       *time.Time     `json:"date_of_birth"`
 	Gender            string         `json:"gender" gorm:"size:10"`
-	Avatar            string         `json:"avatar" gorm:"size:500"`
+	Avatar            datatypes.JSON  `json:"avatar" gorm:"type:json"`
 	IsActive          bool           `json:"is_active" gorm:"default:true;index"`
 	IsEmailVerified   bool           `json:"is_email_verified" gorm:"default:false"`
 	EmailVerifiedAt   *time.Time     `json:"email_verified_at"`
@@ -35,13 +37,18 @@ type User struct {
 	CreatedAt         time.Time      `json:"created_at" gorm:"autoCreateTime"`
 	UpdatedAt         time.Time      `json:"updated_at" gorm:"autoUpdateTime"`
 	DeletedAt         gorm.DeletedAt `json:"-" gorm:"index"`
-
-	// Relationships
+	
+	// Quan hệ
 	Addresses []Address `json:"addresses,omitempty" gorm:"foreignKey:UserID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
-	Reviews   []Review  `json:"reviews,omitempty" gorm:"foreignKey:UserID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
 	Orders    []Order   `json:"orders,omitempty" gorm:"foreignKey:UserID;constraint:OnUpdate:CASCADE,OnDelete:SET NULL"`
+	Reviews   []Review  `json:"reviews,omitempty" gorm:"foreignKey:UserID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
 	Cart      *Cart     `json:"cart,omitempty" gorm:"foreignKey:UserID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
-	News      []News    `json:"news,omitempty" gorm:"foreignKey:AuthorID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT"`
+	News      []News    `json:"news,omitempty" gorm:"foreignKey:CreatorID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT"`
+}
+
+type Avatar struct {
+	URL string `json:"url"`
+	Alt string `json:"alt"`
 }
 
 // TableName chỉ định tên bảng cho model User
@@ -58,20 +65,20 @@ func (u *User) BeforeCreate(tx *gorm.DB) (err error) {
 }
 
 type UserInput struct {
-	Username string `json:"username" binding:"required,min=3,max=50"`
-	Email    string `json:"email" binding:"required,email,max=100"`
-	Password string `json:"password" binding:"required,min=6,max=100"`
-	FullName string `json:"full_name" binding:"max=100"`
-	Avatar   string `json:"avatar" binding:"max=500"`
+	Username string  `json:"username" binding:"required,min=3,max=50"`
+	Email    string  `json:"email" binding:"required,email,max=100"`
+	Password string  `json:"password" binding:"required,min=6,max=100"`
+	FullName string  `json:"full_name" binding:"max=100"`
+	Avatar   []Avatar `json:"avatar"`
 }
 
 type CreateUserInput struct {
-	Username string `json:"username" binding:"required,min=3,max=50"`
-	Email    string `json:"email" binding:"required,email,max=100"`
-	Password string `json:"password" binding:"required,min=6,max=100"`
-	FullName string `json:"full_name" binding:"max=100"`
-	Avatar   string `json:"avatar" binding:"max=500"`
-	Role     string `json:"role" binding:"required,oneof=admin member"`
+	Username string   `json:"username" binding:"required,min=3,max=50"`
+	Email    string   `json:"email" binding:"required,email,max=100"`
+	Password string   `json:"password" binding:"required,min=6,max=100"`
+	FullName string   `json:"full_name" binding:"max=100"`
+	Avatar   []Avatar `json:"avatar"`
+	Role     string   `json:"role" binding:"required,oneof=admin member"`
 	Addresses []string `json:"addresses"` // Thêm trường này để nhận mảng địa chỉ từ FE
 }
 
@@ -86,9 +93,9 @@ type AssignPermissionInput struct {
 }
 
 type UpdateUserInput struct {
-	FullName string `json:"full_name" binding:"max=100"`
-	Email    string `json:"email" binding:"email,max=100"`
-	Avatar   string `json:"avatar" binding:"max=500"`
+	FullName string   `json:"full_name" binding:"max=100"`
+	Email    string   `json:"email" binding:"email,max=100"`
+	Avatar   []Avatar `json:"avatar"`
 }
 
 type AdminUserUpdateInput struct {
@@ -98,7 +105,7 @@ type AdminUserUpdateInput struct {
     Phone     string   `json:"phone" binding:"max=20"`
     Email     string   `json:"email" binding:"required,email,max=100"`
     Addresses []string `json:"addresses"`
-    Avatar    string   `json:"avatar"`
+    Avatar    []Avatar `json:"avatar"`
 }
 
 type LoginInput struct {
@@ -112,21 +119,21 @@ type SimpleAddressResponse struct {
 }
 
 type UserResponse struct {
-	ID                uuid.UUID         `json:"id"`
-	Username          string            `json:"username"`
-	Email             string            `json:"email"`
-	Phone             string            `json:"phone"`
-	FullName          string            `json:"full_name"`
+	ID                uuid.UUID           `json:"id"`
+	Username          string              `json:"username"`
+	Email             string              `json:"email"`
+	Phone             string              `json:"phone"`
+	FullName          string              `json:"full_name"`
 	Addresses         []map[string]string `json:"addresses"`  // Trả về đúng dạng FE yêu cầu
-	Avatar            string            `json:"avatar"`
-	Role              string            `json:"role"`
-	IsActive          bool              `json:"is_active"`
-	TotalOrders       int               `json:"total_orders"`
-	CompletedOrders   int               `json:"completed_orders"`
-	TotalSpent        float64           `json:"total_spent"`
-	LastOrderAt       *time.Time        `json:"last_order_at"`
-	CreatedAt         time.Time         `json:"created_at"`
-	UpdatedAt         time.Time         `json:"updated_at"`
+	Avatar            []Avatar            `json:"avatar"`
+	Role              string              `json:"role"`
+	IsActive          bool                `json:"is_active"`
+	TotalOrders       int                 `json:"total_orders"`
+	CompletedOrders   int                 `json:"completed_orders"`
+	TotalSpent        float64             `json:"total_spent"`
+	LastOrderAt       *time.Time          `json:"last_order_at"`
+	CreatedAt         time.Time           `json:"created_at"`
+	UpdatedAt         time.Time           `json:"updated_at"`
 }
 
 func (u *User) ToResponse() UserResponse {
@@ -136,7 +143,7 @@ func (u *User) ToResponse() UserResponse {
 		Email:           u.Email,
 		Phone:           u.Phone,
 		FullName:        u.FullName,
-		Avatar:          u.Avatar,
+		Avatar:          []Avatar{},
 		Role:            u.Role,
 		IsActive:        u.IsActive,
 		TotalOrders:     u.TotalOrders,
@@ -145,6 +152,14 @@ func (u *User) ToResponse() UserResponse {
 		LastOrderAt:     u.LastOrderAt,
 		CreatedAt:       u.CreatedAt,
 		UpdatedAt:       u.UpdatedAt,
+	}
+
+	// Giải mã avatar (lưu trữ dưới dạng JSON array trong DB) thành []Avatar
+	if len(u.Avatar) > 0 {
+		var avs []Avatar
+		if err := json.Unmarshal(u.Avatar, &avs); err == nil {
+			response.Avatar = avs
+		}
 	}
 
 	if len(u.Addresses) > 0 {

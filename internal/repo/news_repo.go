@@ -66,7 +66,7 @@ func (r *NewsRepo) CreateWithAssociations(news *model.News, tagIDs []uuid.UUID, 
 // GetByID lấy bài viết tin tức theo ID với đầy đủ quan hệ
 func (r *NewsRepo) GetByID(id uuid.UUID) (*model.News, error) {
 	var news model.News
-	err := r.db.Preload("Author").Preload("Category").Preload("Categories").Preload("Tags").
+	err := r.db.Preload("Creator").Preload("Category").Preload("Categories").Preload("Tags").
 		Where("id = ?", id).First(&news).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -80,7 +80,7 @@ func (r *NewsRepo) GetByID(id uuid.UUID) (*model.News, error) {
 // GetBySlug lấy bài viết tin tức theo slug
 func (r *NewsRepo) GetBySlug(slug string) (*model.News, error) {
 	var news model.News
-	err := r.db.Preload("Author").Preload("Category").Preload("Categories").Preload("Tags").
+	err := r.db.Preload("Creator").Preload("Category").Preload("Categories").Preload("Tags").
 		Where("slug = ? AND is_published = ?", slug, true).First(&news).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -108,7 +108,7 @@ func (r *NewsRepo) GetAll(page, limit int, publishedOnly bool) ([]model.News, in
 
 	// Get with pagination and relations
 	offset := (page - 1) * limit
-	err := query.Preload("Author").Preload("Category").Preload("Tags").
+	err := query.Preload("Creator").Preload("Category").Preload("Tags").
 		Order("created_at DESC").
 		Offset(offset).Limit(limit).Find(&news).Error
 
@@ -132,7 +132,7 @@ func (r *NewsRepo) GetByCategory(categoryID uuid.UUID, page, limit int) ([]model
 
 	// Get results
 	offset := (page - 1) * limit
-	err := query.Preload("Author").Preload("Category").Preload("Tags").
+	err := query.Preload("Creator").Preload("Category").Preload("Tags").
 		Order("created_at DESC").
 		Offset(offset).Limit(limit).Find(&news).Error
 
@@ -155,7 +155,7 @@ func (r *NewsRepo) GetByTag(tagID uuid.UUID, page, limit int) ([]model.News, int
 
 	// Get results
 	offset := (page - 1) * limit
-	err := query.Preload("Author").Preload("Category").Preload("Tags").
+	err := query.Preload("Creator").Preload("Category").Preload("Tags").
 		Order("news.created_at DESC").
 		Offset(offset).Limit(limit).Find(&news).Error
 
@@ -260,7 +260,7 @@ func (r *NewsRepo) CheckSlugExists(slug string, excludeID uuid.UUID) (bool, erro
 func (r *NewsRepo) GetFeaturedNews(limit int) ([]model.News, error) {
 	var news []model.News
 	err := r.db.Where("is_published = ? AND is_featured = ?", true, true).
-		Preload("Author").Preload("Category").Preload("Tags").
+		Preload("Creator").Preload("Category").Preload("Tags").
 		Order("created_at DESC").Limit(limit).Find(&news).Error
 	return news, err
 }
@@ -269,7 +269,7 @@ func (r *NewsRepo) GetFeaturedNews(limit int) ([]model.News, error) {
 func (r *NewsRepo) GetLatestNews(limit int) ([]model.News, error) {
 	var news []model.News
 	err := r.db.Where("is_published = ?", true).
-		Preload("Author").Preload("Category").Preload("Tags").
+		Preload("Creator").Preload("Category").Preload("Tags").
 		Order("created_at DESC").Limit(limit).Find(&news).Error
 	return news, err
 }
@@ -278,7 +278,7 @@ func (r *NewsRepo) GetLatestNews(limit int) ([]model.News, error) {
 func (r *NewsRepo) GetPopularNews(limit int) ([]model.News, error) {
 	var news []model.News
 	err := r.db.Where("is_published = ?", true).
-		Preload("Author").Preload("Category").Preload("Tags").
+		Preload("Creator").Preload("Category").Preload("Tags").
 		Order("view_count DESC").Limit(limit).Find(&news).Error
 	return news, err
 }
@@ -299,7 +299,7 @@ func (r *NewsRepo) SearchNews(keyword string, page, limit int) ([]model.News, in
 
 	// Get results
 	offset := (page - 1) * limit
-	err := query.Preload("Author").Preload("Category").Preload("Tags").
+	err := query.Preload("Creator").Preload("Category").Preload("Tags").
 		Order("created_at DESC").
 		Offset(offset).Limit(limit).Find(&news).Error
 

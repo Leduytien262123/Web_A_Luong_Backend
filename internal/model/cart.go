@@ -8,7 +8,7 @@ import (
 )
 
 type Cart struct {
-	ID        uuid.UUID      `json:"id" gorm:"type:char(36);primary_key"`
+	ID        uuid.UUID      `json:"id" gorm:"type:char(36);primaryKey"`
 	UserID    uuid.UUID      `json:"user_id" gorm:"type:char(36);not null;index"`
 	CreatedAt time.Time      `json:"created_at" gorm:"autoCreateTime"`
 	UpdatedAt time.Time      `json:"updated_at" gorm:"autoUpdateTime"`
@@ -28,7 +28,7 @@ func (c *Cart) BeforeCreate(tx *gorm.DB) (err error) {
 }
 
 type CartItem struct {
-	ID        uuid.UUID      `json:"id" gorm:"type:char(36);primary_key"`
+	ID        uuid.UUID      `json:"id" gorm:"type:char(36);primaryKey"`
 	CartID    uuid.UUID      `json:"cart_id" gorm:"type:char(36);not null;index"`
 	ProductID uuid.UUID      `json:"product_id" gorm:"type:char(36);not null;index"`
 	Quantity  int            `json:"quantity" gorm:"not null;default:1"`

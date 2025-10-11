@@ -45,7 +45,6 @@ func Connect() {
 		log.Fatal("❌ Failed to create database:", err)
 	}
 	
-	log.Printf("✅ Database '%s' ensured to exist", dbName)
 
 	// Bây giờ kết nối tới cơ sở dữ liệu cụ thể
 	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Local",
@@ -79,14 +78,16 @@ func Connect() {
 	if err := runMigrations(); err != nil {
 		log.Fatal("❌ Failed to run migrations:", err)
 	}
-
-	log.Println("✅ Database connected and migrated successfully!")
 }
 
 func runMigrations() error {
-	// Chỉ migrate - không drop table
-	err := DB.AutoMigrate(
-		&model.User{},
+	DB.Exec("SET FOREIGN_KEY_CHECKS = 0")
+
+	DB.Exec("DROP TABLE IF EXISTS `news_category_associations`")
+	
+	// Migration theo thứ tự quan trọng - User phải được tạo trước
+	migrationOrder := []interface{}{
+		&model.User{},           // Tạo trước vì News cần reference
 		&model.Category{},
 		&model.Brand{},
 		&model.Product{},
@@ -97,19 +98,142 @@ func runMigrations() error {
 		&model.Order{},
 		&model.OrderItem{},
 		&model.Discount{},
-		&model.DiscountProduct{},     // Thêm model mới
-		&model.DiscountCategory{},    // Thêm model mới
-		&model.UserDiscountUsage{},   // Thêm model mới
+		&model.DiscountProduct{},
+		&model.DiscountCategory{},
+		&model.UserDiscountUsage{},
 		&model.Address{},
-		&model.News{},
-		&model.NewsCategory{},
-		&model.Tag{},
+		&model.NewsCategory{},   // NewsCategory trước News
+		&model.Tag{},            // Tag trước News
+		&model.News{},           // News sau khi User, NewsCategory, Tag đã tồn tại
 		&model.ProductTag{},
 		&model.NewsTag{},
-		&model.NewsCategoryAssociation{},
-	)
+	}
+
+	// Migrate từng model một cách tuần tự
+	for _, modelPtr := range migrationOrder {
+		// Xử lý đặc biệt cho Product model để fix slug duplicates
+		if _, ok := modelPtr.(*model.Product); ok {
+			if err := fixProductSlugDuplicates(); err != nil {
+				log.Printf("⚠️  Warning: Failed to fix product slugs: %v", err)
+			}
+		}
+
+		if err := DB.AutoMigrate(modelPtr); err != nil {
+			return err
+		}
+		// log.Printf("✅ Migrated %T", modelPtr)
+	}
+
+	if err := DB.AutoMigrate(&model.NewsCategoryAssociation{}); err != nil {
+		log.Printf("❌ Failed to migrate NewsCategoryAssociation: %v", err)
+		return err
+	}
 	
-	return err
+	// Check if primary key exists before adding it
+	var keyExists int
+	DB.Raw(`SELECT COUNT(*) FROM information_schema.table_constraints 
+			WHERE table_schema = DATABASE() 
+			AND table_name = 'news_category_associations' 
+			AND constraint_type = 'PRIMARY KEY'`).Scan(&keyExists)
+	
+	if keyExists == 0 {
+		// Add composite primary key only if it doesn't exist
+		if err := DB.Exec(`ALTER TABLE news_category_associations 
+			ADD PRIMARY KEY (news_id, category_id)`).Error; err != nil {
+		} 
+	} 
+	
+
+	// Bật lại foreign key checks
+	DB.Exec("SET FOREIGN_KEY_CHECKS = 1")
+
+	// Tạo user mặc định nếu chưa có
+	if err := createDefaultUser(); err != nil {
+		log.Printf("⚠️  Warning: Failed to create default user: %v", err)
+	}
+
+	return nil
+}
+
+// fixProductSlugDuplicates sửa các slug duplicate trong products
+func fixProductSlugDuplicates() error {
+	// Kiểm tra xem bảng products có tồn tại không
+	var count int64
+	if err := DB.Raw("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'products'").Scan(&count).Error; err != nil {
+		return nil // Bảng chưa tồn tại, không cần fix
+	}
+	if count == 0 {
+		return nil // Bảng chưa tồn tại
+	}
+
+	// Fix empty slugs
+	updateEmptySlugSQL := `
+		UPDATE products 
+		SET slug = LOWER(CONCAT(
+			REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(name, 'product'), ' ', '-'), '&', 'and'), '.', ''), '/', '-'),
+			'-',
+			SUBSTRING(id, 1, 8)
+		))
+		WHERE slug IS NULL OR slug = '' OR TRIM(slug) = ''
+	`
+	if err := DB.Exec(updateEmptySlugSQL).Error; err != nil {
+		log.Printf("⚠️  Warning: Failed to update empty slugs: %v", err)
+	}
+
+	// Fix duplicate slugs
+	fixDuplicateSlugSQL := `
+		UPDATE products p1
+		INNER JOIN (
+			SELECT slug, MIN(id) as min_id
+			FROM products 
+			WHERE slug IS NOT NULL AND slug != ''
+			GROUP BY slug 
+			HAVING COUNT(*) > 1
+		) p2 ON p1.slug = p2.slug AND p1.id != p2.min_id
+		SET p1.slug = CONCAT(p1.slug, '-', SUBSTRING(p1.id, 1, 8))
+	`
+	if err := DB.Exec(fixDuplicateSlugSQL).Error; err != nil {
+		log.Printf("⚠️  Warning: Failed to fix duplicate slugs: %v", err)
+	}
+
+	// Ensure all products have valid slugs
+	ensureSlugSQL := `
+		UPDATE products 
+		SET slug = CONCAT('product-', SUBSTRING(id, 1, 8))
+		WHERE slug IS NULL OR slug = '' OR TRIM(slug) = ''
+	`
+	if err := DB.Exec(ensureSlugSQL).Error; err != nil {
+		log.Printf("⚠️  Warning: Failed to ensure valid slugs: %v", err)
+	}
+
+	return nil
+}
+
+// createDefaultUser tạo user mặc định để tránh lỗi foreign key
+func createDefaultUser() error {
+	var userCount int64
+	DB.Model(&model.User{}).Count(&userCount)
+	
+	if userCount == 0 {
+		log.Println("🔄 Creating default admin user...")
+		
+		defaultUser := model.User{
+			Username:        "admin",
+			FullName:        "Administrator", 
+			Email:           "admin@example.com",
+			Password:        "$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi", // password: password
+			Role:            "admin",
+			IsActive:        true,
+			IsEmailVerified: true,
+		}
+		
+		if err := DB.Create(&defaultUser).Error; err != nil {
+			return fmt.Errorf("failed to create default user: %v", err)
+		}
+		
+	}
+	
+	return nil
 }
 
 // ResetDatabase - CHỈ SỬ DỤNG CHO DEVELOPMENT KHI CẦN RESET TOÀN BỘ DATABASE!

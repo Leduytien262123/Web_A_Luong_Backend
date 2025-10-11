@@ -8,6 +8,7 @@ import (
 
 	"github.com/joho/godotenv"
 	"golang.org/x/crypto/bcrypt"
+	"gorm.io/datatypes"
 )
 
 func main() {
@@ -43,6 +44,7 @@ func main() {
 		FullName: "System Owner",
 		Role:     "owner",
 		IsActive: true,
+		Avatar:   datatypes.JSON([]byte(`{}`)), // Set default empty JSON for avatar
 	}
 
 	if err := db.Create(&owner).Error; err != nil {

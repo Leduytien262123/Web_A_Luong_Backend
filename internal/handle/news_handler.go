@@ -4,12 +4,14 @@ import (
 	"backend/internal/helpers"
 	"backend/internal/model"
 	"backend/internal/repo"
+	"encoding/json"
 	"net/http"
 	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"gorm.io/datatypes"
 )
 
 type NewsHandler struct {
@@ -51,27 +53,47 @@ func (h *NewsHandler) CreateNews(c *gin.Context) {
 		return
 	}
 
+	// Map status to IsPublished
+	isPublished := input.Status == "post"
+
+	// Create news object
 	news := &model.News{
 		Title:       input.Title,
 		Slug:        input.Slug,
-		Summary:     input.Summary,
-		Content:     input.Content,
-		ImageURL:    input.ImageURL,
-		AuthorID:    userID.(uuid.UUID),
+		Summary:     input.Description,
+		ImageURL:    "",
+		CreatorID:   userID.(uuid.UUID),
 		CategoryID:  input.CategoryID,
-		IsPublished: input.IsPublished,
-		IsFeatured:  input.IsFeatured,
-		MetaTitle:   input.MetaTitle,
-		MetaDesc:    input.MetaDesc,
+		IsPublished: isPublished,
+		IsFeatured:  false,
+		PublishedAt: input.PublishedAt,
 	}
 
-	if input.IsPublished {
+	// Set metadata and content as JSON
+	if input.Metadata != nil {
+		metadataJSON, _ := json.Marshal(input.Metadata)
+		news.Metadata = datatypes.JSON(metadataJSON)
+	}
+
+	if input.Content != nil {
+		contentJSON, _ := json.Marshal(input.Content)
+		news.Content = datatypes.JSON(contentJSON)
+	}
+
+	// If published_at is set and status is post, use it; otherwise set current time for published posts
+	if isPublished && news.PublishedAt == nil {
 		now := time.Now()
 		news.PublishedAt = &now
 	}
 
+	// Prepare tag IDs (handle single tag_id)
+	var tagIDs []uuid.UUID
+	if input.TagID != nil {
+		tagIDs = []uuid.UUID{*input.TagID}
+	}
+
 	// Create news with associations
-	if err := h.newsRepo.CreateWithAssociations(news, input.TagIDs, input.CategoryIDs); err != nil {
+	if err := h.newsRepo.CreateWithAssociations(news, tagIDs, nil); err != nil {
 		helpers.ErrorResponse(c, http.StatusInternalServerError, "Failed to create news", err)
 		return
 	}
@@ -239,25 +261,42 @@ func (h *NewsHandler) UpdateNews(c *gin.Context) {
 		}
 	}
 
+	// Map status to IsPublished
+	isPublished := input.Status == "post"
+
 	// Update news fields
 	news.Title = input.Title
 	news.Slug = input.Slug
-	news.Summary = input.Summary
-	news.Content = input.Content
-	news.ImageURL = input.ImageURL
+	news.Summary = input.Description
 	news.CategoryID = input.CategoryID
-	news.IsPublished = input.IsPublished
-	news.IsFeatured = input.IsFeatured
-	news.MetaTitle = input.MetaTitle
-	news.MetaDesc = input.MetaDesc
+	news.IsPublished = isPublished
+	news.PublishedAt = input.PublishedAt
 
-	if input.IsPublished && news.PublishedAt == nil {
+	// Set metadata and content as JSON
+	if input.Metadata != nil {
+		metadataJSON, _ := json.Marshal(input.Metadata)
+		news.Metadata = datatypes.JSON(metadataJSON)
+	}
+
+	if input.Content != nil {
+		contentJSON, _ := json.Marshal(input.Content)
+		news.Content = datatypes.JSON(contentJSON)
+	}
+
+	// If published_at is set and status is post, use it; otherwise set current time for published posts
+	if isPublished && news.PublishedAt == nil {
 		now := time.Now()
 		news.PublishedAt = &now
 	}
 
+	// Prepare tag IDs (handle single tag_id)
+	var tagIDs []uuid.UUID
+	if input.TagID != nil {
+		tagIDs = []uuid.UUID{*input.TagID}
+	}
+
 	// Update with associations
-	if err := h.newsRepo.UpdateWithAssociations(news, input.TagIDs, input.CategoryIDs); err != nil {
+	if err := h.newsRepo.UpdateWithAssociations(news, tagIDs, nil); err != nil {
 		helpers.ErrorResponse(c, http.StatusInternalServerError, "Failed to update news", err)
 		return
 	}
