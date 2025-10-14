@@ -76,6 +76,7 @@ func (h *ProductHandler) CreateProduct(c *gin.Context) {
 		SKU:         input.SKU,
 		Stock:       input.Stock,
 		CategoryID:  input.CategoryID,
+		IsActive:    input.IsActive,
 		BrandID:     input.BrandID,
 		Weight:      func() *float64 { 
 			if input.Weight > 0 {
@@ -302,6 +303,7 @@ func (h *ProductHandler) UpdateProduct(c *gin.Context) {
 	}()
 	product.Dimensions = input.Dimensions
 	product.IsFeatured = input.IsFeatured
+	product.IsActive = input.IsActive
 
 	if input.Metadata != nil {
 		metadataJSON, _ := json.Marshal(input.Metadata)

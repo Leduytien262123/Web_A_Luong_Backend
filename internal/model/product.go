@@ -25,6 +25,7 @@ type Product struct {
 	MaxStock    int            `json:"max_stock" gorm:"default:1000"`
 	Status      string         `json:"status" gorm:"not null;default:active;size:20;index"`
 	IsDigital   bool           `json:"is_digital" gorm:"default:false"`
+	IsActive    bool           `json:"is_active" gorm:"default:true;index"`
 	IsFeatured  bool           `json:"is_featured" gorm:"default:false;index"`
 	MetaTitle   string         `json:"meta_title" gorm:"size:255"`
 	MetaDesc    string         `json:"meta_description" gorm:"size:500"`
@@ -148,6 +149,7 @@ type ProductInput struct {
 	Weight        float64          `json:"weight" binding:"gte=0"`
 	Dimensions    string           `json:"dimensions" binding:"max=100"`
 	IsFeatured    bool             `json:"is_featured"`
+	IsActive      bool             `json:"is_active"`
 	Metadata      *ProductMetadata `json:"metadata,omitempty"`
 	Content       *ProductContent  `json:"content,omitempty"` // Thêm Content
 }
@@ -198,6 +200,7 @@ func (p *Product) ToResponse() ProductResponse {
 		CategoryID:  p.CategoryID,
 		BrandID:     p.BrandID,
 		IsFeatured:  p.IsFeatured,
+		IsActive:    p.IsActive,
 		CreatedAt:   p.CreatedAt,
 		UpdatedAt:   p.UpdatedAt,
 	}

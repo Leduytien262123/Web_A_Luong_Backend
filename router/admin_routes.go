@@ -12,6 +12,7 @@ import (
 // SetupAdminRoutes - Tất cả routes dành cho admin và owner
 func SetupAdminRoutes(router *gin.Engine) {
 	// Khởi tạo repositories và handlers
+	dashboardHandler := handle.NewDashboardHandler()
 	userRepo := repo.NewUserRepository(app.GetDB())
 	adminHandler := handle.NewAdminHandler(userRepo)
 	categoryHandler := handle.NewCategoryHandler()
@@ -40,6 +41,19 @@ func SetupAdminRoutes(router *gin.Engine) {
 	managerRoutes := admin.Group("/manage")
 	managerRoutes.Use(utils.AdminMiddleware())
 	{
+		// ===== DASHBOARD APIs - Tối ưu thành 3 API chính =====
+		dashboardRoutes := managerRoutes.Group("/dashboard")
+		{
+			// API 1: Tổng quan - Gộp 6 API (overview, revenue-chart, order-status, top-products, top-categories, activities)
+			dashboardRoutes.GET("/overview", dashboardHandler.GetFullOverview)
+			
+			// API 2: Phân tích chi tiết - Gộp 6 API (categories, products, payment-methods, order-types, customers, revenue-time)
+			dashboardRoutes.GET("/analytics", dashboardHandler.GetAnalytics)
+			
+			// API 3: Cảnh báo - Gộp 3 API (low-stock, pending-orders, new-customers, activities, alert-counts)
+			dashboardRoutes.GET("/alerts", dashboardHandler.GetAlerts)
+		}
+
 		// Quản lý người dùng
 		managerRoutes.GET("/users", adminHandler.GetAllUsers)
 		managerRoutes.POST("/user", adminHandler.CreateUser)

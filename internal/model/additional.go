@@ -261,6 +261,137 @@ type ProductImageResponse struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
+// Dashboard Statistics Models
+
+// DashboardOverviewResponse - Tổng quan dashboard
+type DashboardOverviewResponse struct {
+	TotalRevenue       float64 `json:"total_revenue"`
+	RevenueGrowth      float64 `json:"revenue_growth"`       // % tăng/giảm so với kỳ trước
+	TotalOrders        int     `json:"total_orders"`
+	OrdersGrowth       float64 `json:"orders_growth"`        // % tăng/giảm so với kỳ trước
+	TotalProducts      int     `json:"total_products_sold"`  // Tổng số sản phẩm đã bán
+	ProductsGrowth     float64 `json:"products_growth"`      // % tăng/giảm so với kỳ trước
+	TotalCustomers     int     `json:"total_customers"`
+	CustomersGrowth    float64 `json:"customers_growth"`     // % tăng/giảm so với kỳ trước
+	PendingOrders      int     `json:"pending_orders"`       // Đơn hàng đang chờ xử lý
+	LowStockProducts   int     `json:"low_stock_products"`   // Số sản phẩm sắp hết hàng
+	AverageOrderValue  float64 `json:"average_order_value"`  // Giá trị đơn hàng trung bình
+}
+
+// DashboardFullOverview - API 1: Tổng hợp tất cả dữ liệu overview (thay thế 5 API)
+type DashboardFullOverview struct {
+	Summary           DashboardOverviewResponse  `json:"summary"`
+	RevenueChart      []RevenueByTimeResponse    `json:"revenue_chart"`
+	OrderStatusChart  []OrderStatusStatistics    `json:"order_status_chart"`
+	TopProducts       []ProductStatistics        `json:"top_products"`
+	TopCategories     []CategoryStatistics       `json:"top_categories"`
+	RecentActivities  []RecentActivity           `json:"recent_activities"`
+}
+
+// DashboardAnalytics - API 2: Phân tích chi tiết (thay thế 4 API)
+type DashboardAnalytics struct {
+	CategoryStats        []CategoryStatistics        `json:"category_stats"`
+	ProductStats         []ProductStatistics         `json:"product_stats"`
+	PaymentMethodStats   []PaymentMethodStatistics   `json:"payment_method_stats"`
+	OrderTypeStats       []OrderTypeStatistics       `json:"order_type_stats"`
+	TopCustomers         []CustomerStatistics        `json:"top_customers"`
+	RevenueByTime        []RevenueByTimeResponse     `json:"revenue_by_time"`
+}
+
+// DashboardAlerts - API 3: Cảnh báo và hoạt động (thay thế 2 API)
+type DashboardAlerts struct {
+	LowStockProducts  []LowStockProduct      `json:"low_stock_products"`
+	PendingOrders     int                    `json:"pending_orders"`
+	NewCustomers      []CustomerStatistics   `json:"new_customers"`
+	RecentActivities  []RecentActivity       `json:"recent_activities"`
+	CriticalAlerts    int                    `json:"critical_alerts"`
+	WarningAlerts     int                    `json:"warning_alerts"`
+}
+
+// RevenueByTimeResponse - Doanh thu theo thời gian
+type RevenueByTimeResponse struct {
+	Period string  `json:"period"` // YYYY-MM-DD hoặc YYYY-MM hoặc YYYY
+	Revenue float64 `json:"revenue"`
+	Orders  int     `json:"orders"`
+	Products int    `json:"products_sold"` // Số sản phẩm đã bán
+}
+
+// CategoryStatistics - Thống kê theo danh mục
+type CategoryStatistics struct {
+	CategoryID   string  `json:"category_id"`
+	CategoryName string  `json:"category_name"`
+	ProductsSold int     `json:"products_sold"`    // Tổng số sản phẩm đã bán
+	Revenue      float64 `json:"revenue"`          // Doanh thu
+	Orders       int     `json:"orders"`           // Số đơn hàng
+	Percentage   float64 `json:"percentage"`       // % so với tổng doanh thu
+}
+
+// ProductStatistics - Thống kê sản phẩm
+type ProductStatistics struct {
+	ProductID    string  `json:"product_id"`
+	ProductName  string  `json:"product_name"`
+	SKU          string  `json:"sku"`
+	QuantitySold int     `json:"quantity_sold"`
+	Revenue      float64 `json:"revenue"`
+	Stock        int     `json:"stock"`
+	Rating       float64 `json:"rating"`
+	ReviewCount  int     `json:"review_count"`
+}
+
+// OrderStatusStatistics - Thống kê trạng thái đơn hàng
+type OrderStatusStatistics struct {
+	Status string `json:"status"`
+	Count  int    `json:"count"`
+	Percentage float64 `json:"percentage"`
+}
+
+// PaymentMethodStatistics - Thống kê phương thức thanh toán
+type PaymentMethodStatistics struct {
+	Method string  `json:"method"`
+	Count  int     `json:"count"`
+	Revenue float64 `json:"revenue"`
+	Percentage float64 `json:"percentage"`
+}
+
+// OrderTypeStatistics - Thống kê loại đơn hàng
+type OrderTypeStatistics struct {
+	Type   string  `json:"type"`
+	Count  int     `json:"count"`
+	Revenue float64 `json:"revenue"`
+	Percentage float64 `json:"percentage"`
+}
+
+// CustomerStatistics - Thống kê khách hàng
+type CustomerStatistics struct {
+	UserID          string  `json:"user_id"`
+	FullName        string  `json:"full_name"`
+	Email           string  `json:"email"`
+	Phone           string  `json:"phone"`
+	TotalOrders     int     `json:"total_orders"`
+	TotalSpent      float64 `json:"total_spent"`
+	LastOrderDate   string  `json:"last_order_date"`
+	AverageOrderValue float64 `json:"average_order_value"`
+}
+
+// LowStockProduct - Sản phẩm sắp hết hàng
+type LowStockProduct struct {
+	ProductID   string `json:"product_id"`
+	ProductName string `json:"product_name"`
+	SKU         string `json:"sku"`
+	CurrentStock int   `json:"current_stock"`
+	MinStock    int    `json:"min_stock"`
+	Status      string `json:"status"` // "critical", "low", "normal"
+}
+
+// RecentActivity - Hoạt động gần đây
+type RecentActivity struct {
+	Type        string `json:"type"` // "order", "review", "user"
+	Description string `json:"description"`
+	Timestamp   string `json:"timestamp"`
+	UserName    string `json:"user_name"`
+	Amount      float64 `json:"amount,omitempty"`
+}
+
 // ToResponse methods
 func (r *Review) ToResponse() ReviewResponse {
 	response := ReviewResponse{
