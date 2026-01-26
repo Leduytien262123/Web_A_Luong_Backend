@@ -21,7 +21,7 @@ func (r *UserRepository) CreateUser(user *model.User) error {
 
 func (r *UserRepository) GetUserByID(id uuid.UUID) (*model.User, error) {
 	var user model.User
-	err := r.db.Preload("Addresses").First(&user, "id = ?", id).Error
+	err := r.db.First(&user, "id = ?", id).Error
 	if err != nil {
 		return nil, err
 	}
@@ -61,28 +61,31 @@ func (r *UserRepository) GetAllUsers() ([]model.User, error) {
 }
 
 func (r *UserRepository) GetUsersByRolesWithPagination(roles []string, name string, phone string, email string, page, limit int) ([]model.User, int64, error) {
-    var users []model.User
-    var total int64
-    db := r.db.Model(&model.User{})
-    if len(roles) > 0 {
-        db = db.Where("role IN ?", roles)
-    }
-    if name != "" {
-            db = db.Where("full_name ILIKE ?", name)
-        }
-    if phone != "" {
-			db = db.Where("phone ILIKE ?", phone)
-		}
+	var users []model.User
+	var total int64
+	db := r.db.Model(&model.User{})
+	
+	if len(roles) > 0 {
+		db = db.Where("role IN ?", roles)
+	}
+	if name != "" {
+		db = db.Where("full_name LIKE ?", "%"+name+"%")
+	}
+	if phone != "" {
+		db = db.Where("phone LIKE ?", "%"+phone+"%")
+	}
 	if email != "" {
-			db = db.Where("email ILIKE ?", email)
-		}
-    if err := db.Count(&total).Error; err != nil {
-        return nil, 0, err
-    }
-    offset := (page - 1) * limit
-    err := db.Order("CASE WHEN role = 'owner' THEN 0 ELSE 1 END, created_at DESC").
-        Offset(offset).Limit(limit).Find(&users).Error
-    return users, total, err
+		db = db.Where("email LIKE ?", "%"+email+"%")
+	}
+	
+	if err := db.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	
+	offset := (page - 1) * limit
+	err := db.Order("CASE WHEN role = 'super_admin' THEN 0 WHEN role = 'admin' THEN 1 ELSE 2 END, created_at DESC").
+		Offset(offset).Limit(limit).Find(&users).Error
+	return users, total, err
 }
 
 func (r *UserRepository) IsUsernameExists(username string) bool {
@@ -97,10 +100,10 @@ func (r *UserRepository) IsEmailExists(email string) bool {
 	return count > 0
 }
 
-// CheckOwnerExists kiểm tra tài khoản owner đã tồn tại hay chưa
-func (r *UserRepository) CheckOwnerExists() (bool, error) {
+// CheckSuperAdminExists kiểm tra tài khoản super admin đã tồn tại hay chưa
+func (r *UserRepository) CheckSuperAdminExists() (bool, error) {
 	var count int64
-	err := r.db.Model(&model.User{}).Where("role = ?", "owner").Count(&count).Error
+	err := r.db.Model(&model.User{}).Where("role = ?", "super_admin").Count(&count).Error
 	return count > 0, err
 }
 
@@ -109,15 +112,12 @@ func (r *UserRepository) GetUsersByRole(role string, page, limit int) ([]model.U
 	var users []model.User
 	var total int64
 
-	// Đếm tổng số bản ghi
 	if err := r.db.Model(&model.User{}).Where("role = ?", role).Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 
-	// Tính offset
 	offset := (page - 1) * limit
 
-	// Lấy danh sách người dùng
 	err := r.db.Where("role = ?", role).
 		Order("created_at DESC").
 		Offset(offset).
@@ -127,7 +127,7 @@ func (r *UserRepository) GetUsersByRole(role string, page, limit int) ([]model.U
 	return users, total, err
 }
 
-// UpdateUserRole cập nhật vai trò người dùng (kèm kiểm tra quyền)
+// UpdateUserRole cập nhật vai trò người dùng
 func (r *UserRepository) UpdateUserRole(userID uuid.UUID, newRole string) error {
 	return r.db.Model(&model.User{}).Where("id = ?", userID).Update("role", newRole).Error
 }
@@ -163,6 +163,20 @@ func (r *UserRepository) GetUserStats() (map[string]interface{}, error) {
 	}
 	stats["inactive_users"] = inactiveUsers
 
+	// Tổng số admin
+	var adminCount int64
+	if err := r.db.Model(&model.User{}).Where("role = ?", "admin").Count(&adminCount).Error; err != nil {
+		return nil, err
+	}
+	stats["total_admins"] = adminCount
+
+	// Tổng số super admin
+	var superAdminCount int64
+	if err := r.db.Model(&model.User{}).Where("role = ?", "super_admin").Count(&superAdminCount).Error; err != nil {
+		return nil, err
+	}
+	stats["total_super_admins"] = superAdminCount
+
 	return stats, nil
 }
 
@@ -178,11 +192,7 @@ func (r *UserRepository) CheckUserCanManage(managerID, targetID uuid.UUID) (bool
 		return false, err
 	}
 
-	// Gợi ý: có thể dùng gói consts để kiểm tra vai trò
-	return manager.Role == "owner" && target.Role != "owner" || 
-		   manager.Role == "admin" && (target.Role == "member" || target.Role == "user"), nil
-}
-
-func (r *UserRepository) DeleteAllAddressesOfUser(userID uuid.UUID) error {
-	return r.db.Where("user_id = ?", userID).Delete(&model.Address{}).Error
+	// Super admin có thể quản lý tất cả trừ super admin khác
+	// Admin không thể quản lý ai cả (chỉ tạo bài viết)
+	return manager.Role == "super_admin" && target.Role != "super_admin", nil
 }

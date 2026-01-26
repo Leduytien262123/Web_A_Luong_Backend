@@ -16,12 +16,14 @@ import (
 )
 
 type TagHandler struct {
-	tagRepo *repo.TagRepo
+	tagRepo     *repo.TagRepo
+	articleRepo *repo.ArticleRepo
 }
 
 func NewTagHandler() *TagHandler {
 	return &TagHandler{
-		tagRepo: repo.NewTagRepo(),
+		tagRepo:     repo.NewTagRepo(),
+		articleRepo: repo.NewArticleRepo(),
 	}
 }
 
@@ -63,7 +65,7 @@ func (h *TagHandler) CreateTag(c *gin.Context) {
 	if input.IsActive != nil {
 		tag.IsActive = *input.IsActive
 	}
-	
+
 	// Marshal metadata và content sang JSON
 	if input.Metadata != nil {
 		metadataJSON, _ := json.Marshal(input.Metadata)
@@ -136,6 +138,42 @@ func (h *TagHandler) GetTags(c *gin.Context) {
 	}
 
 	helpers.SuccessResponse(c, "Lấy danh sách tags thành công", response)
+}
+
+// GetPublicTags trả về danh sách tags đang hoạt động (public)
+func (h *TagHandler) GetPublicTags(c *gin.Context) {
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
+
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 || limit > 50 {
+		limit = 20
+	}
+
+	tags, total, err := h.tagRepo.GetAll(page, limit, true)
+	if err != nil {
+		helpers.ErrorResponse(c, http.StatusInternalServerError, "Không thể lấy danh sách tags", err)
+		return
+	}
+
+	var responses []model.TagResponse
+	for _, tag := range tags {
+		responses = append(responses, tag.ToResponse())
+	}
+
+	totalPages := (total + int64(limit) - 1) / int64(limit)
+
+	helpers.SuccessResponse(c, "Lấy danh sách tags thành công", map[string]interface{}{
+		"tags": responses,
+		"pagination": map[string]interface{}{
+			"page":        page,
+			"limit":       limit,
+			"total":       total,
+			"total_pages": totalPages,
+		},
+	})
 }
 
 // GetTagByID lấy tag theo ID
@@ -227,14 +265,14 @@ func (h *TagHandler) UpdateTag(c *gin.Context) {
 	tag.Name = input.Name
 	tag.Slug = input.Slug
 	tag.Description = input.Description
-	
+
 	if input.DisplayOrder != nil {
 		tag.DisplayOrder = *input.DisplayOrder
 	}
 	if input.IsActive != nil {
 		tag.IsActive = *input.IsActive
 	}
-	
+
 	// Marshal metadata và content sang JSON
 	if input.Metadata != nil {
 		metadataJSON, _ := json.Marshal(input.Metadata)
@@ -335,3 +373,54 @@ func (h *TagHandler) SearchTags(c *gin.Context) {
 	helpers.SuccessResponse(c, "Tìm kiếm tags thành công", response)
 }
 
+// GetArticlesByTagSlug trả về bài viết đã đăng theo slug tag (public)
+func (h *TagHandler) GetArticlesByTagSlug(c *gin.Context) {
+	slug := c.Param("slug")
+	if strings.TrimSpace(slug) == "" {
+		helpers.ErrorResponse(c, http.StatusBadRequest, "Slug không hợp lệ", errors.New("slug không được để trống"))
+		return
+	}
+
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 || limit > 100 {
+		limit = 10
+	}
+
+	tag, err := h.tagRepo.GetBySlug(slug)
+	if err != nil {
+		if err.Error() == "tag not found" {
+			helpers.ErrorResponse(c, http.StatusNotFound, "Không tìm thấy tag", err)
+			return
+		}
+		helpers.ErrorResponse(c, http.StatusInternalServerError, "Không thể lấy tag", err)
+		return
+	}
+
+	articles, total, err := h.articleRepo.GetPublishedByTagID(tag.ID, page, limit)
+	if err != nil {
+		helpers.ErrorResponse(c, http.StatusInternalServerError, "Không thể lấy bài viết theo tag", err)
+		return
+	}
+
+	var responses []model.ArticleResponse
+	for _, article := range articles {
+		responses = append(responses, article.ToResponse())
+	}
+
+	totalPages := (total + int64(limit) - 1) / int64(limit)
+
+	helpers.SuccessResponse(c, "Lấy bài viết theo tag thành công", map[string]interface{}{
+		"tag":      tag.ToResponse(),
+		"articles": responses,
+		"pagination": map[string]interface{}{
+			"page":        page,
+			"limit":       limit,
+			"total":       total,
+			"total_pages": totalPages,
+		},
+	})
+}

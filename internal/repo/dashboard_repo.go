@@ -1,3 +1,7 @@
+//go:build ignore
+// +build ignore
+
+// Dashboard repo disabled for article-first deployment; enable by removing build tag.
 package repo
 
 import (
@@ -516,112 +520,112 @@ func (r *DashboardRepo) GetRecentActivities(limit int) ([]model.RecentActivity, 
 // GetFullOverview - API 1: Lấy tất cả dữ liệu overview (gộp 5 API)
 func (r *DashboardRepo) GetFullOverview(startDate, endDate time.Time, period string) (*model.DashboardFullOverview, error) {
 	result := &model.DashboardFullOverview{}
-	
+
 	// 1. Summary statistics
 	summary, err := r.GetOverviewStats(startDate, endDate)
 	if err != nil {
 		return nil, err
 	}
 	result.Summary = *summary
-	
+
 	// 2. Revenue chart (7 days for quick load)
 	revenueChart, err := r.GetRevenueByTime(startDate, endDate, period)
 	if err != nil {
 		return nil, err
 	}
 	result.RevenueChart = revenueChart
-	
+
 	// 3. Order status chart
 	orderStatusChart, err := r.GetOrderStatusStatistics(startDate, endDate)
 	if err != nil {
 		return nil, err
 	}
 	result.OrderStatusChart = orderStatusChart
-	
+
 	// 4. Top 5 products
 	topProducts, err := r.GetTopProducts(startDate, endDate, 5)
 	if err != nil {
 		return nil, err
 	}
 	result.TopProducts = topProducts
-	
+
 	// 5. Top 5 categories
 	topCategories, err := r.GetCategoryStatistics(startDate, endDate, 5)
 	if err != nil {
 		return nil, err
 	}
 	result.TopCategories = topCategories
-	
+
 	// 6. Recent 10 activities
 	recentActivities, err := r.GetRecentActivities(10)
 	if err != nil {
 		return nil, err
 	}
 	result.RecentActivities = recentActivities
-	
+
 	return result, nil
 }
 
 // GetAnalytics - API 2: Lấy dữ liệu phân tích chi tiết (gộp 4 API)
 func (r *DashboardRepo) GetAnalytics(startDate, endDate time.Time, period string) (*model.DashboardAnalytics, error) {
 	result := &model.DashboardAnalytics{}
-	
+
 	// 1. All category stats
 	categoryStats, err := r.GetCategoryStatistics(startDate, endDate, 0)
 	if err != nil {
 		return nil, err
 	}
 	result.CategoryStats = categoryStats
-	
+
 	// 2. Top 20 products
 	productStats, err := r.GetTopProducts(startDate, endDate, 20)
 	if err != nil {
 		return nil, err
 	}
 	result.ProductStats = productStats
-	
+
 	// 3. Payment method statistics
 	paymentStats, err := r.GetPaymentMethodStatistics(startDate, endDate)
 	if err != nil {
 		return nil, err
 	}
 	result.PaymentMethodStats = paymentStats
-	
+
 	// 4. Order type statistics
 	orderTypeStats, err := r.GetOrderTypeStatistics(startDate, endDate)
 	if err != nil {
 		return nil, err
 	}
 	result.OrderTypeStats = orderTypeStats
-	
+
 	// 5. Top 10 customers
 	topCustomers, err := r.GetTopCustomers(startDate, endDate, 10)
 	if err != nil {
 		return nil, err
 	}
 	result.TopCustomers = topCustomers
-	
+
 	// 6. Revenue by time (for detailed chart)
 	revenueByTime, err := r.GetRevenueByTime(startDate, endDate, period)
 	if err != nil {
 		return nil, err
 	}
 	result.RevenueByTime = revenueByTime
-	
+
 	return result, nil
 }
 
 // GetAlerts - API 3: Lấy cảnh báo và hoạt động (gộp 2 API)
 func (r *DashboardRepo) GetAlerts() (*model.DashboardAlerts, error) {
 	result := &model.DashboardAlerts{}
-	
+
 	// 1. Low stock products (top 20)
 	lowStockProducts, err := r.GetLowStockProducts(20)
 	if err != nil {
 		return nil, err
 	}
 	result.LowStockProducts = lowStockProducts
-	
+
 	// 2. Count critical and warning alerts
 	criticalCount := 0
 	warningCount := 0
@@ -634,14 +638,14 @@ func (r *DashboardRepo) GetAlerts() (*model.DashboardAlerts, error) {
 	}
 	result.CriticalAlerts = criticalCount
 	result.WarningAlerts = warningCount
-	
+
 	// 3. Pending orders count
 	var pendingOrders int64
 	r.db.Model(&model.Order{}).
 		Where("status IN (?)", []string{"pending", "new", "confirmed"}).
 		Count(&pendingOrders)
 	result.PendingOrders = int(pendingOrders)
-	
+
 	// 4. New customers (last 7 days)
 	endDate := time.Now()
 	startDate := endDate.AddDate(0, 0, -7)
@@ -650,13 +654,13 @@ func (r *DashboardRepo) GetAlerts() (*model.DashboardAlerts, error) {
 		return nil, err
 	}
 	result.NewCustomers = newCustomers
-	
+
 	// 5. Recent activities (20 items)
 	recentActivities, err := r.GetRecentActivities(20)
 	if err != nil {
 		return nil, err
 	}
 	result.RecentActivities = recentActivities
-	
+
 	return result, nil
 }

@@ -18,50 +18,48 @@ import (
 )
 
 type AdminHandler struct {
-	userRepo    *repo.UserRepository
-	addressRepo *repo.AddressRepo
+	userRepo *repo.UserRepository
 }
 
 func NewAdminHandler(userRepo *repo.UserRepository) *AdminHandler {
 	return &AdminHandler{
-		userRepo:    userRepo,
-		addressRepo: repo.NewAddressRepo(),
+		userRepo: userRepo,
 	}
 }
 
 func (h *AdminHandler) GetAllUsers(c *gin.Context) {
-    page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-    limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
-    roleQuery := c.Query("role")
-    name := c.Query("name")         // nhận giá trị name
-    phone := c.Query("phone")           // nhận giá trị phone
-	email := c.Query("email")           // nhận giá trị email
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
+	roleQuery := c.Query("role")
+	name := c.Query("name")
+	phone := c.Query("phone")
+	email := c.Query("email")
 
-    var roles []string
-    if roleQuery != "" {
-        roles = strings.Split(roleQuery, ",")
-    }
-    users, total, err := h.userRepo.GetUsersByRolesWithPagination(roles, name, phone, email, page, limit)
-    if err != nil {
-        helpers.ErrorResponse(c, http.StatusInternalServerError, consts.MSG_INTERNAL_ERROR, err)
-        return
-    }
+	var roles []string
+	if roleQuery != "" {
+		roles = strings.Split(roleQuery, ",")
+	}
+	users, total, err := h.userRepo.GetUsersByRolesWithPagination(roles, name, phone, email, page, limit)
+	if err != nil {
+		helpers.ErrorResponse(c, http.StatusInternalServerError, consts.MSG_INTERNAL_ERROR, err)
+		return
+	}
 
-    var response []model.UserResponse
-    for _, user := range users {
-        response = append(response, user.ToResponse())
-    }
+	var response []model.UserResponse
+	for _, user := range users {
+		response = append(response, user.ToResponse())
+	}
 
-    result := map[string]interface{}{
-        "users": response,
-        "pagination": map[string]interface{}{
-            "page":  page,
-            "limit": limit,
-            "total": total,
-        },
-    }
+	result := map[string]interface{}{
+		"users": response,
+		"pagination": map[string]interface{}{
+			"page":  page,
+			"limit": limit,
+			"total": total,
+		},
+	}
 
-    helpers.SuccessResponse(c, consts.MSG_SUCCESS, result)
+	helpers.SuccessResponse(c, consts.MSG_SUCCESS, result)
 }
 
 func (h *AdminHandler) GetUserByID(c *gin.Context) {
@@ -94,17 +92,11 @@ func (h *AdminHandler) UpdateUserRole(c *gin.Context) {
 	}
 
 	var input struct {
-		Role string `json:"role" binding:"required"`
+		Role string `json:"role" binding:"required,oneof=super_admin admin"`
 	}
 
 	if err := c.ShouldBindJSON(&input); err != nil {
 		helpers.BadRequestResponse(c, consts.MSG_VALIDATION_ERROR)
-		return
-	}
-
-	// Xác thực vai trò
-	if input.Role != consts.ROLE_ADMIN && input.Role != consts.ROLE_USER {
-		helpers.BadRequestResponse(c, "Vai trò không hợp lệ")
 		return
 	}
 
@@ -162,7 +154,6 @@ func (h *AdminHandler) DeleteUser(c *gin.Context) {
 		return
 	}
 
-	// Kiểm tra xem người dùng có tồn tại không
 	_, err = h.userRepo.GetUserByID(userID)
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
@@ -181,7 +172,7 @@ func (h *AdminHandler) DeleteUser(c *gin.Context) {
 	helpers.SuccessResponse(c, "Xóa người dùng thành công", nil)
 }
 
-// CreateUser tạo tài khoản người dùng mới (chỉ Owner và Admin)
+// CreateUser tạo tài khoản admin mới (chỉ Super Admin)
 func (h *AdminHandler) CreateUser(c *gin.Context) {
 	currentUserRole, exists := c.Get("user_role")
 	if !exists {
@@ -189,8 +180,8 @@ func (h *AdminHandler) CreateUser(c *gin.Context) {
 		return
 	}
 
-	// Chỉ owner và admin mới có thể tạo người dùng
-	if currentUserRole != "owner" && currentUserRole != "admin" {
+	// Chỉ super_admin mới có thể tạo người dùng
+	if currentUserRole != "super_admin" {
 		helpers.ErrorResponse(c, http.StatusForbidden, "Không đủ quyền", nil)
 		return
 	}
@@ -201,32 +192,26 @@ func (h *AdminHandler) CreateUser(c *gin.Context) {
 		return
 	}
 
-	// Admin không thể tạo tài khoản owner
-	if currentUserRole == "admin" && input.Role == "owner" {
-		helpers.ErrorResponse(c, http.StatusForbidden, "Admin không thể tạo tài khoản owner", nil)
-		return
-	}
-
-	// Kiểm tra xem owner đã tồn tại chưa khi cố gắng tạo owner
-	if input.Role == "owner" {
-		exists, err := h.userRepo.CheckOwnerExists()
+	// Không cho phép tạo super_admin khác
+	if input.Role == "super_admin" {
+		exists, err := h.userRepo.CheckSuperAdminExists()
 		if err != nil {
 			helpers.ErrorResponse(c, http.StatusInternalServerError, "Lỗi cơ sở dữ liệu", err)
 			return
 		}
 		if exists {
-			helpers.ErrorResponse(c, http.StatusConflict, "Tài khoản owner đã tồn tại", nil)
+			helpers.ErrorResponse(c, http.StatusConflict, "Chỉ được phép có một tài khoản Super Admin", nil)
 			return
 		}
 	}
 
-	// Kiểm tra xem username đã tồn tại chưa
+	// Kiểm tra username đã tồn tại
 	if h.userRepo.IsUsernameExists(input.Username) {
 		helpers.ErrorResponse(c, http.StatusConflict, "Tên người dùng đã tồn tại", nil)
 		return
 	}
 
-	// Kiểm tra xem email đã tồn tại chưa
+	// Kiểm tra email đã tồn tại
 	if h.userRepo.IsEmailExists(input.Email) {
 		helpers.ErrorResponse(c, http.StatusConflict, "Email đã tồn tại", nil)
 		return
@@ -241,7 +226,6 @@ func (h *AdminHandler) CreateUser(c *gin.Context) {
 
 	// Tạo người dùng
 	var avatarJSON datatypes.JSON
-	// If Avatar slice provided, marshal to JSON array, otherwise use empty JSON array
 	if len(input.Avatar) > 0 {
 		if b, err := json.Marshal(input.Avatar); err == nil {
 			avatarJSON = datatypes.JSON(b)
@@ -267,26 +251,6 @@ func (h *AdminHandler) CreateUser(c *gin.Context) {
 		return
 	}
 
-	// Nếu có addresses từ FE thì lưu toàn bộ địa chỉ cho user
-	if len(input.Addresses) > 0 {
-		var addresses []model.Address
-		for i, addr := range input.Addresses {
-			addresses = append(addresses, model.Address{
-				UserID:       user.ID,
-				Name:         user.FullName,
-				Phone:        user.Phone,
-				AddressLine1: addr,
-				AddressLine2: "",
-				City:         "N/A",
-				State:        "N/A",
-				PostalCode:   "100000",
-				Country:      "Vietnam",
-				IsDefault:    i == 0,
-			})
-		}
-		h.addressRepo.BulkCreateAddresses(user.ID, addresses)
-	}
-
 	c.JSON(http.StatusCreated, helpers.Response{
 		Success: true,
 		Message: "Tạo người dùng thành công",
@@ -294,7 +258,7 @@ func (h *AdminHandler) CreateUser(c *gin.Context) {
 	})
 }
 
-// GetUsersByRole lấy danh sách người dùng được lọc theo vai trò
+// GetUsersByRole lấy danh sách người dùng theo vai trò
 func (h *AdminHandler) GetUsersByRole(c *gin.Context) {
 	currentUserRole, exists := c.Get("user_role")
 	if !exists {
@@ -302,8 +266,8 @@ func (h *AdminHandler) GetUsersByRole(c *gin.Context) {
 		return
 	}
 
-	// Chỉ owner và admin mới có thể xem người dùng theo vai trò
-	if currentUserRole != "owner" && currentUserRole != "admin" {
+	// Chỉ super_admin mới có quyền
+	if currentUserRole != "super_admin" {
 		helpers.ErrorResponse(c, http.StatusForbidden, "Không đủ quyền", nil)
 		return
 	}
@@ -350,9 +314,9 @@ func (h *AdminHandler) GetUsersByRole(c *gin.Context) {
 	})
 }
 
-// AssignUserRole gán hoặc cập nhật vai trò người dùng (chỉ Owner và Admin)
+// AssignUserRole gán vai trò người dùng (chỉ Super Admin)
 func (h *AdminHandler) AssignUserRole(c *gin.Context) {
-	currentUserID, exists := c.Get("user_id")
+	currentUserID, exists := c.Get("userID")
 	if !exists {
 		helpers.UnauthorizedResponse(c, "Chưa xác thực")
 		return
@@ -364,8 +328,8 @@ func (h *AdminHandler) AssignUserRole(c *gin.Context) {
 		return
 	}
 
-	// Chỉ owner và admin mới có thể gán vai trò
-	if currentUserRole != "owner" && currentUserRole != "admin" {
+	// Chỉ super_admin mới có quyền
+	if currentUserRole != "super_admin" {
 		helpers.ErrorResponse(c, http.StatusForbidden, "Không đủ quyền", nil)
 		return
 	}
@@ -383,7 +347,7 @@ func (h *AdminHandler) AssignUserRole(c *gin.Context) {
 		return
 	}
 
-	// Kiểm tra xem người dùng có thể quản lý người dùng đích không
+	// Kiểm tra có thể quản lý user đích không
 	canManage, err := h.userRepo.CheckUserCanManage(currentUserID.(uuid.UUID), targetUserID)
 	if err != nil {
 		helpers.ErrorResponse(c, http.StatusInternalServerError, "Lỗi cơ sở dữ liệu", err)
@@ -395,32 +359,19 @@ func (h *AdminHandler) AssignUserRole(c *gin.Context) {
 		return
 	}
 
-	// Admin không thể gán vai trò owner
-	if currentUserRole == "admin" && input.Role == "owner" {
-		helpers.ErrorResponse(c, http.StatusForbidden, "Admin không thể gán vai trò owner", nil)
+	// Không cho phép tạo thêm super_admin
+	if input.Role == "super_admin" {
+		helpers.ErrorResponse(c, http.StatusForbidden, "Không thể gán vai trò Super Admin", nil)
 		return
 	}
 
-	// Kiểm tra xem có cố gắng tạo owner thứ hai không
-	if input.Role == "owner" {
-		exists, err := h.userRepo.CheckOwnerExists()
-		if err != nil {
-			helpers.ErrorResponse(c, http.StatusInternalServerError, "Lỗi cơ sở dữ liệu", err)
-			return
-		}
-		if exists {
-			helpers.ErrorResponse(c, http.StatusConflict, "Tài khoản owner đã tồn tại", nil)
-			return
-		}
-	}
-
-	// Cập nhật vai trò người dùng
+	// Cập nhật vai trò
 	if err := h.userRepo.UpdateUserRole(targetUserID, input.Role); err != nil {
 		helpers.ErrorResponse(c, http.StatusInternalServerError, "Không thể cập nhật vai trò người dùng", err)
 		return
 	}
 
-	// Lấy thông tin người dùng đã cập nhật
+	// Lấy thông tin đã cập nhật
 	updatedUser, err := h.userRepo.GetUserByID(targetUserID)
 	if err != nil {
 		helpers.ErrorResponse(c, http.StatusInternalServerError, "Không thể lấy thông tin người dùng đã cập nhật", err)
@@ -434,7 +385,7 @@ func (h *AdminHandler) AssignUserRole(c *gin.Context) {
 	})
 }
 
-// GetUserStats lấy thống kê người dùng (chỉ Owner và Admin)
+// GetUserStats lấy thống kê người dùng (chỉ Super Admin)
 func (h *AdminHandler) GetUserStats(c *gin.Context) {
 	currentUserRole, exists := c.Get("user_role")
 	if !exists {
@@ -442,8 +393,8 @@ func (h *AdminHandler) GetUserStats(c *gin.Context) {
 		return
 	}
 
-	// Chỉ owner và admin mới có thể xem thống kê
-	if currentUserRole != "owner" && currentUserRole != "admin" {
+	// Chỉ super_admin mới có quyền
+	if currentUserRole != "super_admin" {
 		helpers.ErrorResponse(c, http.StatusForbidden, "Không đủ quyền", nil)
 		return
 	}
@@ -461,7 +412,7 @@ func (h *AdminHandler) GetUserStats(c *gin.Context) {
 	})
 }
 
-// UpdateUser cập nhật thông tin user theo ID (dành cho admin)
+// UpdateUser cập nhật thông tin user (chỉ Super Admin)
 func (h *AdminHandler) UpdateUser(c *gin.Context) {
 	userIDStr := c.Param("id")
 	userID, err := uuid.Parse(userIDStr)
@@ -486,13 +437,11 @@ func (h *AdminHandler) UpdateUser(c *gin.Context) {
 		return
 	}
 
-	// Chỉ owner mới được sửa thông tin cho tài khoản owner
-	if user.Role == "owner" {
-		currentUserRole, exists := c.Get("user_role")
-		if !exists || currentUserRole != "owner" {
-			helpers.ErrorResponse(c, http.StatusForbidden, "Chỉ owner mới được sửa thông tin cho tài khoản owner", nil)
-			return
-		}
+	// Chỉ super_admin mới được sửa thông tin
+	currentUserRole, exists := c.Get("user_role")
+	if !exists || currentUserRole != "super_admin" {
+		helpers.ErrorResponse(c, http.StatusForbidden, "Chỉ Super Admin mới được sửa thông tin người dùng", nil)
+		return
 	}
 
 	// Cập nhật các trường
@@ -506,7 +455,6 @@ func (h *AdminHandler) UpdateUser(c *gin.Context) {
 		}
 		user.Email = input.Email
 	}
-	// Update avatar from admin input (avatar is []Avatar)
 	if len(input.Avatar) > 0 {
 		if b, err := json.Marshal(input.Avatar); err == nil {
 			user.Avatar = datatypes.JSON(b)
@@ -517,33 +465,10 @@ func (h *AdminHandler) UpdateUser(c *gin.Context) {
 	if input.Phone != "" {
 		user.Phone = input.Phone
 	}
-	// Không cho phép cập nhật role nếu là owner hoặc user
-	if (user.Role == "owner" || user.Role == "user") && input.Role != "" && input.Role != user.Role {
-		helpers.ErrorResponse(c, http.StatusForbidden, "Không thể cập nhật role của tài khoản owner hoặc user", nil)
-		return
-	}
-	if input.Role != "" && user.Role != "owner" && user.Role != "user" {
-		user.Role = input.Role
-	}
 	
-	// Cập nhật addresses nếu có - xóa toàn bộ cũ, thêm mới
-	if len(input.Addresses) > 0 {
-		var addresses []model.Address
-		for i, addr := range input.Addresses {
-			addresses = append(addresses, model.Address{
-				UserID:       userID,
-				Name:         user.FullName,
-				Phone:        user.Phone,
-				AddressLine1: addr,
-				AddressLine2: "",
-				City:         "N/A",
-				State:        "N/A",
-				PostalCode:   "000000",
-				Country:      "Vietnam",
-				IsDefault:    i == 0,
-			})
-		}
-		h.addressRepo.BulkCreateAddresses(userID, addresses)
+	// Không cho phép thay đổi role của super_admin
+	if user.Role != "super_admin" && input.Role != "" {
+		user.Role = input.Role
 	}
 
 	if err := h.userRepo.UpdateUser(user); err != nil {

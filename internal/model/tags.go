@@ -22,10 +22,6 @@ type Tag struct {
 	CreatedAt    time.Time      `json:"created_at" gorm:"autoCreateTime"`
 	UpdatedAt    time.Time      `json:"updated_at" gorm:"autoUpdateTime"`
 	DeletedAt    gorm.DeletedAt `json:"-" gorm:"index"`
-
-	// Relations
-	Products []Product `json:"products,omitempty" gorm:"many2many:product_tags;"`
-	News     []News    `json:"news,omitempty" gorm:"many2many:news_tags;"`
 }
 
 // BeforeCreate hook để tự động tạo UUID
@@ -43,10 +39,10 @@ func (Tag) TableName() string {
 
 // Metadata and Content structs
 type TagMetadata struct {
-	MetaTitle       string           `json:"meta_title"`
-	MetaDescription string           `json:"meta_description"`
-	MetaImage       []MetaImageTag   `json:"meta_image"`
-	MetaKeywords    string           `json:"meta_keywords"`
+	MetaTitle       string         `json:"meta_title"`
+	MetaDescription string         `json:"meta_description"`
+	MetaImage       []MetaImageTag `json:"meta_image"`
+	MetaKeywords    string         `json:"meta_keywords"`
 }
 
 type MetaImageTag struct {
@@ -116,6 +112,12 @@ type TagShortResponse struct {
 	Slug string    `json:"slug"`
 }
 
+// TagSimpleResponse dùng cho Article response
+type TagSimpleResponse struct {
+	ID   uuid.UUID `json:"id"`
+	Name string    `json:"name"`
+}
+
 // ToResponse chuyển Tag thành TagResponse
 func (t *Tag) ToResponse() TagResponse {
 	resp := TagResponse{
@@ -146,10 +148,6 @@ func (t *Tag) ToResponse() TagResponse {
 		}
 	}
 
-	if len(t.News) > 0 {
-		resp.NewsCount = len(t.News)
-	}
-
 	return resp
 }
 
@@ -162,20 +160,4 @@ func (t *Tag) ToShortResponse() TagShortResponse {
 	}
 }
 
-// ProductTag - Bảng trung gian cho Product và Tag
-type ProductTag struct {
-	ProductID uuid.UUID `gorm:"type:char(36);primaryKey"`
-	TagID     uuid.UUID `gorm:"type:char(36);primaryKey"`
-	CreatedAt time.Time `gorm:"autoCreateTime"`
-}
-
-func (ProductTag) TableName() string { return "product_tags" }
-
-// NewsTag - Bảng trung gian cho News và Tag
-type NewsTag struct {
-	NewsID    uuid.UUID `gorm:"type:char(36);primaryKey"`
-	TagID     uuid.UUID `gorm:"type:char(36);primaryKey"`
-	CreatedAt time.Time `gorm:"autoCreateTime"`
-}
-
-func (NewsTag) TableName() string { return "news_tags" }
+// (Relations to products/news removed to align with current article-based domain)

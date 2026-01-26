@@ -58,7 +58,8 @@ func AuthMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		c.Set("user_id", userID)
+		// Sử dụng key là "userID" thay vì "user_id" cho nhất quán
+		c.Set("userID", userID)
 		c.Set("username", claims["username"].(string))
 		c.Set("user_role", claims["role"].(string))
 		c.Next()
@@ -110,17 +111,22 @@ func roleMiddleware(allowedRoles []string, message string) gin.HandlerFunc {
 	}
 }
 
-// Admin middleware (admin hoặc owner)
+// SuperAdminMiddleware - Chỉ dành cho super admin
+func SuperAdminMiddleware() gin.HandlerFunc {
+	return roleMiddleware([]string{"super_admin"}, "Yêu cầu quyền Super Admin")
+}
+
+// AdminMiddleware - Dành cho cả super admin và admin
 func AdminMiddleware() gin.HandlerFunc {
-	return roleMiddleware([]string{consts.RoleAdmin, consts.RoleOwner}, consts.MSG_FORBIDDEN)
+	return roleMiddleware([]string{"super_admin", "admin"}, "Yêu cầu quyền Admin")
 }
 
-// Owner middleware (chỉ owner)
+// OwnerMiddleware - deprecated, giữ lại để tránh lỗi
 func OwnerMiddleware() gin.HandlerFunc {
-	return roleMiddleware([]string{consts.RoleOwner}, "Yêu cầu quyền truy cập Owner")
+	return SuperAdminMiddleware()
 }
 
-// Member middleware (member, admin hoặc owner)
+// MemberOrAboveMiddleware - deprecated
 func MemberOrAboveMiddleware() gin.HandlerFunc {
-	return roleMiddleware([]string{"member", consts.RoleAdmin, consts.RoleOwner}, "Yêu cầu quyền truy cập Member trở lên")
+	return AdminMiddleware()
 }

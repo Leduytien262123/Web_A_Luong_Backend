@@ -47,28 +47,48 @@ func (h *CategoryHandler) CreateCategory(c *gin.Context) {
 		return
 	}
 
-	// Tạo metadata mặc định
-	defaultMetadata := model.CategoryMetadata{
-		MetaTitle:       "",
-		MetaDescription: "",
-		MetaImage:       []model.MetaImageCategory{}, // Đổi thành empty array
-		MetaKeywords:    "",
+	// Đảm bảo metadata luôn có giá trị và meta_image luôn là mảng (không null)
+	if input.Metadata == nil {
+		input.Metadata = &model.CategoryMetadata{
+			MetaTitle:       "",
+			MetaDescription: "",
+			MetaImage:       []model.MetaImageCategory{},
+			MetaKeywords:    "",
+		}
+	} else {
+		if input.Metadata.MetaImage == nil {
+			input.Metadata.MetaImage = []model.MetaImageCategory{}
+		}
 	}
-	metadataJSON, _ := json.Marshal(defaultMetadata)
+	metadataJSON, _ := json.Marshal(input.Metadata)
 
 	category := model.Category{
-		Name:        input.Name,
-		Description: input.Description,
-		Slug:        input.Slug,
-		IsActive:    false,
-		ShowOnMenu:  false,
-		ShowOnHome:  false,
+		Name:         input.Name,
+		Description:  input.Description,
+		Slug:         input.Slug,
+		DisplayOrder: 0,
+		IsActive:     false,
+		ShowOnMenu:   false,
+		ShowOnHome:   false,
 		ShowOnFooter: false,
-		Metadata:    datatypes.JSON(metadataJSON),
+		Metadata:     datatypes.JSON(metadataJSON),
+	}
+
+	// Handle parent category if provided
+	if input.ParentCategory != nil && strings.TrimSpace(*input.ParentCategory) != "" {
+		if parentID, err := uuid.Parse(strings.TrimSpace(*input.ParentCategory)); err == nil {
+			category.ParentID = &parentID
+		} else {
+			helpers.ErrorResponse(c, http.StatusBadRequest, "Parent category ID không hợp lệ", err)
+			return
+		}
 	}
 
 	if input.IsActive != nil {
 		category.IsActive = *input.IsActive
+	}
+	if input.DisplayOrder != nil {
+		category.DisplayOrder = *input.DisplayOrder
 	}
 	if input.ShowOnMenu != nil {
 		category.ShowOnMenu = *input.ShowOnMenu
@@ -79,10 +99,31 @@ func (h *CategoryHandler) CreateCategory(c *gin.Context) {
 	if input.ShowOnFooter != nil {
 		category.ShowOnFooter = *input.ShowOnFooter
 	}
-	if input.Metadata != nil {
-		metadataJSON, _ := json.Marshal(input.Metadata)
-		category.Metadata = datatypes.JSON(metadataJSON)
+	if input.PositionMenu != nil {
+		category.PositionMenu = *input.PositionMenu
 	}
+	if input.PositionFooter != nil {
+		category.PositionFooter = *input.PositionFooter
+	}
+	if input.PositionHome != nil {
+		category.PositionHome = *input.PositionHome
+	}
+	// Handle parent category update
+	if input.ParentCategory != nil {
+		if strings.TrimSpace(*input.ParentCategory) == "" {
+			// clear parent
+			category.ParentID = nil
+		} else {
+			if parentID, err := uuid.Parse(strings.TrimSpace(*input.ParentCategory)); err == nil {
+				category.ParentID = &parentID
+			} else {
+				helpers.ErrorResponse(c, http.StatusBadRequest, "Parent category ID không hợp lệ", err)
+				return
+			}
+		}
+	}
+	// Metadata đã được chuẩn hóa phía trên
+	category.Metadata = datatypes.JSON(metadataJSON)
 
 	if err := h.categoryRepo.Create(&category); err != nil {
 		helpers.ErrorResponse(c, http.StatusInternalServerError, "Không thể tạo danh mục", err)
@@ -96,11 +137,18 @@ func (h *CategoryHandler) CreateCategory(c *gin.Context) {
 	})
 }
 
-// GetCategories lấy tất cả danh mục
+// GetCategories lấy tất cả danh mục dạng tree
 func (h *CategoryHandler) GetCategories(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
-	withProducts := c.Query("with_products") == "true"
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 {
+		limit = 1
+	}
+	withArticles := c.Query("with_articles") == "true"
+	treeView := c.DefaultQuery("tree", "true") == "true" // Mặc định là tree view
 
 	var categories []model.Category
 	var total int64
@@ -108,11 +156,10 @@ func (h *CategoryHandler) GetCategories(c *gin.Context) {
 
 	search := c.Query("search")
 	if search != "" {
-		categories, err = h.categoryRepo.GetByName(search)
-		total = int64(len(categories))
+		categories, total, err = h.categoryRepo.GetByNameWithPagination(search, withArticles, page, limit)
 	} else {
-		if withProducts {
-			categories, total, err = h.categoryRepo.GetAllWithProductsAndPagination(page, limit)
+		if withArticles {
+			categories, total, err = h.categoryRepo.GetAllWithArticlesAndPagination(page, limit)
 		} else {
 			categories, total, err = h.categoryRepo.GetAllWithPagination(page, limit)
 		}
@@ -123,9 +170,17 @@ func (h *CategoryHandler) GetCategories(c *gin.Context) {
 		return
 	}
 
-	var response []model.CategoryResponse
-	for _, category := range categories {
-		response = append(response, category.ToResponse())
+	var response interface{}
+	if treeView {
+		// Trả về dạng cây
+		response = model.BuildCategoryTree(categories)
+	} else {
+		// Trả về dạng list phẳng
+		var flatResponse []model.CategoryResponse
+		for _, category := range categories {
+			flatResponse = append(flatResponse, category.ToResponse())
+		}
+		response = flatResponse
 	}
 
 	result := map[string]interface{}{
@@ -144,6 +199,84 @@ func (h *CategoryHandler) GetCategories(c *gin.Context) {
 	})
 }
 
+// GetPublicCategories trả về danh mục hoạt động (public)
+func (h *CategoryHandler) GetPublicCategories(c *gin.Context) {
+	treeView := c.DefaultQuery("tree", "true") == "true"
+
+	categories, err := h.categoryRepo.GetActive()
+	if err != nil {
+		helpers.ErrorResponse(c, http.StatusInternalServerError, "Không thể lấy danh mục", err)
+		return
+	}
+
+	var response interface{}
+	if treeView {
+		response = model.BuildCategoryTree(categories)
+	} else {
+		var flatResponse []model.CategoryResponse
+		for _, category := range categories {
+			flatResponse = append(flatResponse, category.ToResponse())
+		}
+		response = flatResponse
+	}
+
+	helpers.SuccessResponse(c, "Lấy danh mục thành công", map[string]interface{}{
+		"categories": response,
+	})
+}
+
+// GetPublicHomeCategories trả về các danh mục có show_on_home = true kèm bài viết
+// Query params: per_articles (số bài viết mỗi danh mục, mặc định 6)
+func (h *CategoryHandler) GetPublicHomeCategories(c *gin.Context) {
+	perArticles, _ := strconv.Atoi(c.DefaultQuery("per_articles", "6"))
+	if perArticles < 0 {
+		perArticles = 6
+	}
+
+	categories, err := h.categoryRepo.GetHomeCategoriesWithArticles(perArticles)
+	if err != nil {
+		helpers.ErrorResponse(c, http.StatusInternalServerError, "Không thể lấy danh sách danh mục cho trang chủ", err)
+		return
+	}
+
+	var resp []model.CategoryResponse
+	for _, cat := range categories {
+		resp = append(resp, cat.ToResponse())
+	}
+
+	helpers.SuccessResponse(c, "Lấy danh mục trang chủ thành công", map[string]interface{}{
+		"categories": resp,
+	})
+}
+
+// GetCategoryTree lấy cây danh mục
+func (h *CategoryHandler) GetCategoryTree(c *gin.Context) {
+	withArticles := c.Query("with_articles") == "true"
+
+	var categories []model.Category
+	var err error
+
+	if withArticles {
+		categories, err = h.categoryRepo.GetAllWithArticles()
+	} else {
+		categories, err = h.categoryRepo.GetAll()
+	}
+
+	if err != nil {
+		helpers.ErrorResponse(c, http.StatusInternalServerError, "Không thể lấy cây danh mục", err)
+		return
+	}
+
+	// Xây dựng cấu trúc cây
+	treeResponse := model.BuildCategoryTree(categories)
+
+	c.JSON(http.StatusOK, helpers.Response{
+		Success: true,
+		Message: "Lấy cây danh mục thành công",
+		Data:    treeResponse,
+	})
+}
+
 // GetCategoryByID lấy danh mục theo ID
 func (h *CategoryHandler) GetCategoryByID(c *gin.Context) {
 	idStr := c.Param("id")
@@ -153,7 +286,14 @@ func (h *CategoryHandler) GetCategoryByID(c *gin.Context) {
 		return
 	}
 
-	category, err := h.categoryRepo.GetByID(id)
+	withArticles := c.Query("with_articles") == "true"
+
+	var category *model.Category
+	if withArticles {
+		category, err = h.categoryRepo.GetByIDWithArticles(id)
+	} else {
+		category, err = h.categoryRepo.GetByID(id)
+	}
 	if err != nil {
 		if err.Error() == "category not found" {
 			helpers.ErrorResponse(c, http.StatusNotFound, "Không tìm thấy danh mục", err)
@@ -178,7 +318,15 @@ func (h *CategoryHandler) GetCategoryBySlug(c *gin.Context) {
 		return
 	}
 
-	category, err := h.categoryRepo.GetBySlug(slug)
+	withArticles := c.Query("with_articles") == "true"
+
+	var err error
+	var category *model.Category
+	if withArticles {
+		category, err = h.categoryRepo.GetBySlugWithArticles(slug)
+	} else {
+		category, err = h.categoryRepo.GetBySlug(slug)
+	}
 	if err != nil {
 		if err.Error() == "category not found" {
 			helpers.ErrorResponse(c, http.StatusNotFound, "Không tìm thấy danh mục", err)
@@ -239,6 +387,9 @@ func (h *CategoryHandler) UpdateCategory(c *gin.Context) {
 	category.Name = input.Name
 	category.Description = input.Description
 	category.Slug = input.Slug
+	if input.DisplayOrder != nil {
+		category.DisplayOrder = *input.DisplayOrder
+	}
 	if input.IsActive != nil {
 		category.IsActive = *input.IsActive
 	}
@@ -251,9 +402,36 @@ func (h *CategoryHandler) UpdateCategory(c *gin.Context) {
 	if input.ShowOnFooter != nil {
 		category.ShowOnFooter = *input.ShowOnFooter
 	}
+	if input.PositionMenu != nil {
+		category.PositionMenu = *input.PositionMenu
+	}
+	if input.PositionFooter != nil {
+		category.PositionFooter = *input.PositionFooter
+	}
+	if input.PositionHome != nil {
+		category.PositionHome = *input.PositionHome
+	}
 	if input.Metadata != nil {
+		if input.Metadata.MetaImage == nil {
+			input.Metadata.MetaImage = []model.MetaImageCategory{}
+		}
 		metadataJSON, _ := json.Marshal(input.Metadata)
 		category.Metadata = datatypes.JSON(metadataJSON)
+	}
+
+	// Handle parent category update
+	if input.ParentCategory != nil {
+		if strings.TrimSpace(*input.ParentCategory) == "" {
+			// Clear parent
+			category.ParentID = nil
+		} else {
+			if parentID, err := uuid.Parse(strings.TrimSpace(*input.ParentCategory)); err == nil {
+				category.ParentID = &parentID
+			} else {
+				helpers.ErrorResponse(c, http.StatusBadRequest, "Parent category ID không hợp lệ", err)
+				return
+			}
+		}
 	}
 
 	if err := h.categoryRepo.Update(category); err != nil {

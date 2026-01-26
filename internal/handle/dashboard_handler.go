@@ -1,3 +1,7 @@
+//go:build ignore
+// +build ignore
+
+// Dashboard handler disabled; remove build tag to re-enable when dashboard domain models exist.
 package handle
 
 import (
