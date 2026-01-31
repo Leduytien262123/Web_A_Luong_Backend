@@ -110,6 +110,7 @@ type ArticleSummary struct {
 	CreatedAt   time.Time  `json:"created_at"`
 	UpdatedAt   time.Time  `json:"updated_at"`
 	Metadata    datatypes.JSON `json:"metadata,omitempty"`
+	Content     datatypes.JSON `json:"content,omitempty"`
 }
 
 // ToResponse chuyển Category thành CategoryResponse
@@ -152,6 +153,7 @@ func (c *Category) ToResponse() CategoryResponse {
 				CreatedAt:   article.CreatedAt,
 				UpdatedAt:   article.UpdatedAt,
 				Metadata:    article.Metadata,
+				Content:     article.Content,
 			})
 		}
 		response.Articles = articles
