@@ -31,7 +31,7 @@ func main() {
 	}
 
 	// Create default owner account
-	password := "owner123" // Default password - should be changed after first login
+	password := "owner123A@" // Default password - should be changed after first login
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
 		log.Fatal("Failed to hash password:", err)
@@ -39,7 +39,7 @@ func main() {
 
 	owner := model.User{
 		Username: "owner",
-		Email:    "owner@walletshop.com",
+		Email:    "leduytien202@gmail.com",
 		Password: string(hashedPassword),
 		FullName: "System Owner",
 		Role:     "owner",
