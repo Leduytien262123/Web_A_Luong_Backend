@@ -75,8 +75,9 @@ func Connect() {
 
 	// Chạy migration
 	if err := runMigrations(); err != nil {
-		log.Fatal("❌ Failed to run migrations:", err)
+		log.Println("⚠️ Migration warning:", err)
 	}
+
 }
 
 func runMigrations() error {
@@ -294,15 +295,16 @@ func createDefaultData() error {
 		superAdmin := model.User{
 			Username:        "superadmin",
 			FullName:        "Super Administrator",
-			Email:           "superadmin@example.com",
-			Password:        "$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi", // password: password
+			Email:           "leduytien202@gmail.com",
+			Password:        "$2a$10$tv5wb.7uuGly2Fb5AoAh/e4B4DK23Qw8hubsaKdym/4wCJ5JLxLp6", // password: owner123A@
 			Role:            "super_admin",
 			IsActive:        true,
 			IsEmailVerified: true,
 		}
 
 		if err := DB.Create(&superAdmin).Error; err != nil {
-			return fmt.Errorf("failed to create super admin: %v", err)
+			log.Println("⚠️ Super admin exists or cannot create:", err)
+			return nil
 		}
 		log.Println("✅ Super admin created successfully")
 	}
