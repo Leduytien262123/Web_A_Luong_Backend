@@ -246,6 +246,86 @@ func (r *ArticleRepo) Search(keyword string, page, limit int) ([]model.Article, 
 	return articles, total, nil
 }
 
+// ArticleFilter chứa các filter cho tìm kiếm bài viết
+type ArticleFilter struct {
+	Search     string     // Tìm kiếm theo title
+	CategoryID *uuid.UUID // Lọc theo category
+	TagID      *uuid.UUID // Lọc theo tag
+	Published  *bool      // Lọc theo trạng thái published
+}
+
+// SearchWithFilters tìm kiếm bài viết với nhiều filter và phân trang tối ưu
+func (r *ArticleRepo) SearchWithFilters(filter ArticleFilter, page, limit int) ([]model.Article, int64, error) {
+	var articles []model.Article
+	var total int64
+
+	offset := (page - 1) * limit
+
+	// Build base query
+	query := r.db.Model(&model.Article{})
+
+	// Apply search filter
+	if filter.Search != "" {
+		searchPattern := "%" + filter.Search + "%"
+		query = query.Where("title LIKE ? OR description LIKE ?", searchPattern, searchPattern)
+	}
+
+	// Apply category filter
+	if filter.CategoryID != nil {
+		query = query.Where("category_id = ?", *filter.CategoryID)
+	}
+
+	// Apply tag filter (JSON search)
+	if filter.TagID != nil {
+		jsonContainsValue := fmt.Sprintf("\"%s\"", filter.TagID.String())
+		query = query.Where("JSON_CONTAINS(tag_id, ?, '$')", jsonContainsValue)
+	}
+
+	// Apply published filter
+	if filter.Published != nil {
+		if *filter.Published {
+			query = query.Where("status IN ?", publishedStatuses)
+		} else {
+			query = query.Where("status = ?", articleStatusDraft)
+		}
+	}
+
+	// Count total (use a separate query to avoid issues with Preload)
+	countQuery := r.db.Model(&model.Article{})
+	if filter.Search != "" {
+		searchPattern := "%" + filter.Search + "%"
+		countQuery = countQuery.Where("title LIKE ? OR description LIKE ?", searchPattern, searchPattern)
+	}
+	if filter.CategoryID != nil {
+		countQuery = countQuery.Where("category_id = ?", *filter.CategoryID)
+	}
+	if filter.TagID != nil {
+		jsonContainsValue := fmt.Sprintf("\"%s\"", filter.TagID.String())
+		countQuery = countQuery.Where("JSON_CONTAINS(tag_id, ?, '$')", jsonContainsValue)
+	}
+	if filter.Published != nil {
+		if *filter.Published {
+			countQuery = countQuery.Where("status IN ?", publishedStatuses)
+		} else {
+			countQuery = countQuery.Where("status = ?", articleStatusDraft)
+		}
+	}
+
+	if err := countQuery.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	// Fetch articles with pagination
+	err := query.Preload("Author").Preload("Category").
+		Order("created_at DESC").
+		Limit(limit).Offset(offset).Find(&articles).Error
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return articles, total, nil
+}
+
 // Update cập nhật bài viết
 func (r *ArticleRepo) Update(article *model.Article) error {
 	return r.db.Save(article).Error

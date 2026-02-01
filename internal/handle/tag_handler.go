@@ -93,7 +93,7 @@ func (h *TagHandler) GetTags(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
 	activeOnly := c.Query("active_only") == "true"
-	search := c.Query("search")
+	search := strings.TrimSpace(c.Query("search"))
 
 	if page < 1 {
 		page = 1
@@ -106,21 +106,15 @@ func (h *TagHandler) GetTags(c *gin.Context) {
 	var total int64
 	var err error
 
-	if search != "" {
-		// Tìm kiếm tags
-		tags, err = h.tagRepo.SearchTags(search, limit)
-		total = int64(len(tags))
-	} else {
-		// Lấy tất cả tags với phân trang
-		tags, total, err = h.tagRepo.GetAll(page, limit, activeOnly)
-	}
+	// Use unified search function that supports both search and pagination
+	tags, total, err = h.tagRepo.SearchTags(search, page, limit, activeOnly)
 
 	if err != nil {
 		helpers.ErrorResponse(c, http.StatusInternalServerError, "Không thể lấy danh sách tags", err)
 		return
 	}
 
-	var responses []model.TagResponse
+	responses := make([]model.TagResponse, 0, len(tags))
 	for _, tag := range tags {
 		responses = append(responses, tag.ToResponse())
 	}
@@ -342,32 +336,43 @@ func (h *TagHandler) GetPopularTags(c *gin.Context) {
 
 // SearchTags tìm kiếm tags
 func (h *TagHandler) SearchTags(c *gin.Context) {
-	keyword := c.Query("q")
+	keyword := strings.TrimSpace(c.Query("q"))
 	if keyword == "" {
 		helpers.ErrorResponse(c, http.StatusBadRequest, "Từ khóa tìm kiếm là bắt buộc", nil)
 		return
 	}
 
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
+	if page < 1 {
+		page = 1
+	}
 	if limit < 1 || limit > 50 {
 		limit = 10
 	}
 
-	tags, err := h.tagRepo.SearchTags(keyword, limit)
+	tags, total, err := h.tagRepo.SearchTags(keyword, page, limit, true)
 	if err != nil {
 		helpers.ErrorResponse(c, http.StatusInternalServerError, "Không thể tìm kiếm tags", err)
 		return
 	}
 
-	var responses []model.TagResponse
+	responses := make([]model.TagResponse, 0, len(tags))
 	for _, tag := range tags {
 		responses = append(responses, tag.ToResponse())
 	}
 
+	totalPages := (total + int64(limit) - 1) / int64(limit)
+
 	response := map[string]interface{}{
 		"tags":    responses,
 		"keyword": keyword,
-		"total":   len(responses),
+		"pagination": map[string]interface{}{
+			"page":        page,
+			"limit":       limit,
+			"total":       total,
+			"total_pages": totalPages,
+		},
 	}
 
 	helpers.SuccessResponse(c, "Tìm kiếm tags thành công", response)

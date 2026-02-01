@@ -2,7 +2,6 @@ package repo
 
 import (
 	"backend/app"
-	"backend/internal/helpers"
 	"backend/internal/model"
 	"errors"
 
@@ -223,35 +222,15 @@ func (r *CategoryRepo) GetByName(name string, includeArticles bool) ([]model.Cat
 	return results, err
 }
 
-// GetByNameWithPagination tìm kiếm danh mục theo tên và phân trang
+// GetByNameWithPagination tìm kiếm danh mục theo tên và phân trang - tối ưu với database query
 func (r *CategoryRepo) GetByNameWithPagination(name string, includeArticles bool, page, limit int) ([]model.Category, int64, error) {
 	var categories []model.Category
+	var total int64
 
 	// Nếu search term rỗng, trả về mảng rỗng
 	if name == "" {
 		return categories, 0, nil
 	}
-
-	// Lấy tất cả danh mục (vẫn cần vì IsSearchMatch hoạt động trên text không dấu)
-	query := r.db
-	if includeArticles {
-		query = query.Preload("Articles")
-	}
-
-	err := query.Find(&categories).Error
-	if err != nil {
-		return nil, 0, err
-	}
-
-	// Lọc các danh mục phù hợp với search term
-	var filteredCategories []model.Category
-	for _, category := range categories {
-		if helpers.IsSearchMatch(name, category.Name) {
-			filteredCategories = append(filteredCategories, category)
-		}
-	}
-
-	total := int64(len(filteredCategories))
 
 	// Chuẩn hóa page/limit
 	if page < 1 {
@@ -261,16 +240,26 @@ func (r *CategoryRepo) GetByNameWithPagination(name string, includeArticles bool
 		limit = 1
 	}
 
-	// Áp dụng phân trang thủ công trên slice đã lọc
-	start := (page - 1) * limit
-	if start >= len(filteredCategories) {
-		return []model.Category{}, total, nil
+	offset := (page - 1) * limit
+	searchPattern := "%" + name + "%"
+
+	// Build base query with LIKE search (database-level search for better performance)
+	countQuery := r.db.Model(&model.Category{}).Where("name LIKE ?", searchPattern)
+	if err := countQuery.Count(&total).Error; err != nil {
+		return nil, 0, err
 	}
 
-	end := start + limit
-	if end > len(filteredCategories) {
-		end = len(filteredCategories)
+	// Lấy danh sách danh mục với phân trang
+	query := r.db.Preload("Parent")
+	if includeArticles {
+		query = query.Preload("Articles")
 	}
 
-	return filteredCategories[start:end], total, nil
+	err := query.Where("name LIKE ?", searchPattern).
+		Order("created_at DESC").
+		Offset(offset).
+		Limit(limit).
+		Find(&categories).Error
+
+	return categories, total, err
 }

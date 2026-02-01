@@ -209,7 +209,9 @@ func (h *ArticleHandler) GetArticles(c *gin.Context) {
 	pageStr := c.DefaultQuery("page", "1")
 	limitStr := c.DefaultQuery("limit", "10")
 	categoryIDStr := c.Query("category_id")
+	tagIDStr := c.Query("tag_id")
 	publishedStr := c.Query("published")
+	search := c.Query("search")
 
 	page, _ := strconv.Atoi(pageStr)
 	limit, _ := strconv.Atoi(limitStr)
@@ -221,37 +223,48 @@ func (h *ArticleHandler) GetArticles(c *gin.Context) {
 		limit = 10
 	}
 
-	var articles []model.Article
-	var total int64
-	var err error
+	// Build filter
+	filter := repo.ArticleFilter{
+		Search: strings.TrimSpace(search),
+	}
 
-	// Filter by category
+	// Parse category_id
 	if categoryIDStr != "" {
 		categoryID, err := uuid.Parse(categoryIDStr)
 		if err != nil {
 			helpers.ErrorResponse(c, http.StatusBadRequest, "ID danh mục không hợp lệ", err)
 			return
 		}
-		articles, total, err = h.articleRepo.GetByCategoryID(categoryID, page, limit)
-	} else {
-		// Filter by published status
-		var published *bool
-		if publishedStr == "true" {
-			t := true
-			published = &t
-		} else if publishedStr == "false" {
-			f := false
-			published = &f
-		}
-		articles, total, err = h.articleRepo.GetAll(page, limit, published)
+		filter.CategoryID = &categoryID
 	}
 
+	// Parse tag_id
+	if tagIDStr != "" {
+		tagID, err := uuid.Parse(tagIDStr)
+		if err != nil {
+			helpers.ErrorResponse(c, http.StatusBadRequest, "ID tag không hợp lệ", err)
+			return
+		}
+		filter.TagID = &tagID
+	}
+
+	// Parse published status
+	if publishedStr == "true" {
+		t := true
+		filter.Published = &t
+	} else if publishedStr == "false" {
+		f := false
+		filter.Published = &f
+	}
+
+	// Search with filters
+	articles, total, err := h.articleRepo.SearchWithFilters(filter, page, limit)
 	if err != nil {
 		helpers.ErrorResponse(c, http.StatusInternalServerError, "Không thể lấy danh sách bài viết", err)
 		return
 	}
 
-	var response []model.ArticleResponse
+	response := make([]model.ArticleResponse, 0, len(articles))
 	for _, article := range articles {
 		response = append(response, article.ToResponse())
 	}

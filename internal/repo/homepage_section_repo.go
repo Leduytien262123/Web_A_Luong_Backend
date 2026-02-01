@@ -85,6 +85,34 @@ func (r *HomepageSectionRepo) GetAll(page, limit int) ([]model.HomepageSection, 
 	return sections, total, nil
 }
 
+// SearchByTitle tìm kiếm sections theo title với phân trang
+func (r *HomepageSectionRepo) SearchByTitle(keyword string, page, limit int) ([]model.HomepageSection, int64, error) {
+	var sections []model.HomepageSection
+	var total int64
+
+	offset := (page - 1) * limit
+
+	query := r.db.Model(&model.HomepageSection{})
+
+	// Apply search filter if keyword is provided
+	if keyword != "" {
+		searchPattern := "%" + keyword + "%"
+		query = query.Where("title LIKE ? OR type_key LIKE ?", searchPattern, searchPattern)
+	}
+
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	err := query.Order("position ASC, created_at DESC").
+		Limit(limit).Offset(offset).Find(&sections).Error
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return sections, total, nil
+}
+
 // GetPublic lấy tất cả sections công khai (show_home = true) sắp xếp theo position
 func (r *HomepageSectionRepo) GetPublic() ([]model.HomepageSection, error) {
 	var sections []model.HomepageSection

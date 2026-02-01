@@ -78,6 +78,7 @@ func (h *HomepageSectionHandler) CreateSection(c *gin.Context) {
 func (h *HomepageSectionHandler) GetSections(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
+	search := strings.TrimSpace(c.Query("search"))
 
 	if page < 1 {
 		page = 1
@@ -86,16 +87,23 @@ func (h *HomepageSectionHandler) GetSections(c *gin.Context) {
 		limit = 20
 	}
 
-	sections, total, err := h.sectionRepo.GetAll(page, limit)
+	var sections []model.HomepageSection
+	var total int64
+	var err error
+
+	// Use search function that supports both search and pagination
+	sections, total, err = h.sectionRepo.SearchByTitle(search, page, limit)
 	if err != nil {
 		helpers.ErrorResponse(c, http.StatusInternalServerError, "Không thể lấy danh sách sections", err)
 		return
 	}
 
-	var responses []model.HomepageSectionResponse
+	responses := make([]model.HomepageSectionResponse, 0, len(sections))
 	for _, section := range sections {
 		responses = append(responses, section.ToResponse())
 	}
+
+	totalPages := (total + int64(limit) - 1) / int64(limit)
 
 	helpers.SuccessResponse(c, "Lấy danh sách sections thành công", gin.H{
 		"data": responses,
@@ -103,7 +111,7 @@ func (h *HomepageSectionHandler) GetSections(c *gin.Context) {
 			"total":        total,
 			"page":         page,
 			"limit":        limit,
-			"total_pages":  (total + int64(limit) - 1) / int64(limit),
+			"total_pages":  totalPages,
 			"has_next":     int64(page*limit) < total,
 			"has_previous": page > 1,
 		},

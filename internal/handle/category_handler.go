@@ -144,8 +144,8 @@ func (h *CategoryHandler) GetCategories(c *gin.Context) {
 	if page < 1 {
 		page = 1
 	}
-	if limit < 1 {
-		limit = 1
+	if limit < 1 || limit > 100 {
+		limit = 10
 	}
 	withArticles := c.Query("with_articles") == "true"
 	treeView := c.DefaultQuery("tree", "true") == "true" // Mặc định là tree view
@@ -154,7 +154,7 @@ func (h *CategoryHandler) GetCategories(c *gin.Context) {
 	var total int64
 	var err error
 
-	search := c.Query("search")
+	search := strings.TrimSpace(c.Query("search"))
 	if search != "" {
 		categories, total, err = h.categoryRepo.GetByNameWithPagination(search, withArticles, page, limit)
 	} else {
@@ -176,19 +176,22 @@ func (h *CategoryHandler) GetCategories(c *gin.Context) {
 		response = model.BuildCategoryTree(categories)
 	} else {
 		// Trả về dạng list phẳng
-		var flatResponse []model.CategoryResponse
+		flatResponse := make([]model.CategoryResponse, 0, len(categories))
 		for _, category := range categories {
 			flatResponse = append(flatResponse, category.ToResponse())
 		}
 		response = flatResponse
 	}
 
+	totalPages := (total + int64(limit) - 1) / int64(limit)
+
 	result := map[string]interface{}{
 		"categories": response,
 		"pagination": map[string]interface{}{
-			"page":  page,
-			"limit": limit,
-			"total": total,
+			"page":        page,
+			"limit":       limit,
+			"total":       total,
+			"total_pages": totalPages,
 		},
 	}
 

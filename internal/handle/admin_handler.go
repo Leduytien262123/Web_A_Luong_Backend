@@ -31,9 +31,22 @@ func (h *AdminHandler) GetAllUsers(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
 	roleQuery := c.Query("role")
-	name := c.Query("name")
-	phone := c.Query("phone")
-	email := c.Query("email")
+	name := strings.TrimSpace(c.Query("name"))
+	phone := strings.TrimSpace(c.Query("phone"))
+	email := strings.TrimSpace(c.Query("email"))
+	search := strings.TrimSpace(c.Query("search"))
+
+	// If search is provided, use it for name search as well
+	if search != "" && name == "" {
+		name = search
+	}
+
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 || limit > 100 {
+		limit = 10
+	}
 
 	var roles []string
 	if roleQuery != "" {
@@ -45,17 +58,20 @@ func (h *AdminHandler) GetAllUsers(c *gin.Context) {
 		return
 	}
 
-	var response []model.UserResponse
+	response := make([]model.UserResponse, 0, len(users))
 	for _, user := range users {
 		response = append(response, user.ToResponse())
 	}
 
+	totalPages := (total + int64(limit) - 1) / int64(limit)
+
 	result := map[string]interface{}{
 		"users": response,
 		"pagination": map[string]interface{}{
-			"page":  page,
-			"limit": limit,
-			"total": total,
+			"page":        page,
+			"limit":       limit,
+			"total":       total,
+			"total_pages": totalPages,
 		},
 	}
 
@@ -236,14 +252,20 @@ func (h *AdminHandler) CreateUser(c *gin.Context) {
 		avatarJSON = datatypes.JSON([]byte(`[]`))
 	}
 
+	isActive := true
+	if input.IsActive != nil {
+		isActive = *input.IsActive
+	}
+
 	user := model.User{
 		Username: input.Username,
 		Email:    input.Email,
 		Password: string(hashedPassword),
 		FullName: input.FullName,
+		Phone:    input.Phone,
 		Avatar:   avatarJSON,
 		Role:     input.Role,
-		IsActive: true,
+		IsActive: isActive,
 	}
 
 	if err := h.userRepo.CreateUser(&user); err != nil {
@@ -464,6 +486,11 @@ func (h *AdminHandler) UpdateUser(c *gin.Context) {
 	}
 	if input.Phone != "" {
 		user.Phone = input.Phone
+	}
+	
+	// Cập nhật trạng thái hoạt động
+	if input.IsActive != nil && user.Role != "super_admin" {
+		user.IsActive = *input.IsActive
 	}
 	
 	// Không cho phép thay đổi role của super_admin

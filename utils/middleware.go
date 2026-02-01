@@ -121,7 +121,7 @@ func AdminMiddleware() gin.HandlerFunc {
 	return roleMiddleware([]string{"super_admin", "admin"}, "Yêu cầu quyền Admin")
 }
 
-// OwnerMiddleware - deprecated, giữ lại để tránh lỗi
+// OwnerMiddleware - deprecated, giữ lại để tương thích
 func OwnerMiddleware() gin.HandlerFunc {
 	return SuperAdminMiddleware()
 }

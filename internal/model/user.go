@@ -65,8 +65,10 @@ type CreateUserInput struct {
 	Email    string   `json:"email" binding:"required,email,max=100"`
 	Password string   `json:"password" binding:"required,min=6,max=100"`
 	FullName string   `json:"full_name" binding:"max=100"`
+	Phone    string   `json:"phone" binding:"max=20"`
 	Avatar   []Avatar `json:"avatar"`
 	Role     string   `json:"role" binding:"required,oneof=super_admin admin"`
+	IsActive *bool    `json:"is_active"`
 }
 
 type UpdateUserRoleInput struct {
@@ -86,6 +88,7 @@ type AdminUserUpdateInput struct {
 	Phone    string   `json:"phone" binding:"max=20"`
 	Email    string   `json:"email" binding:"required,email,max=100"`
 	Avatar   []Avatar `json:"avatar"`
+	IsActive *bool    `json:"is_active"`
 }
 
 type LoginInput struct {

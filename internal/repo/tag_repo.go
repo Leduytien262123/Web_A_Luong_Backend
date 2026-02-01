@@ -121,10 +121,31 @@ func (r *TagRepo) DecrementUsageCount(id uuid.UUID) error {
 		UpdateColumn("usage_count", gorm.Expr("usage_count - 1")).Error
 }
 
-// SearchTags tìm kiếm tags theo tên
-func (r *TagRepo) SearchTags(keyword string, limit int) ([]model.Tag, error) {
+// SearchTags tìm kiếm tags theo tên với phân trang
+func (r *TagRepo) SearchTags(keyword string, page, limit int, activeOnly bool) ([]model.Tag, int64, error) {
 	var tags []model.Tag
-	err := r.db.Where("is_active = ? AND name ILIKE ?", true, "%"+keyword+"%").
-		Order("usage_count DESC, name ASC").Limit(limit).Find(&tags).Error
-	return tags, err
+	var total int64
+
+	query := r.db.Model(&model.Tag{})
+	if activeOnly {
+		query = query.Where("is_active = ?", true)
+	}
+
+	// Apply search filter
+	if keyword != "" {
+		searchPattern := "%" + keyword + "%"
+		query = query.Where("name LIKE ?", searchPattern)
+	}
+
+	// Count total
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	// Get with pagination
+	offset := (page - 1) * limit
+	err := query.Order("usage_count DESC, name ASC").
+		Offset(offset).Limit(limit).Find(&tags).Error
+
+	return tags, total, err
 }
