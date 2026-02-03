@@ -33,6 +33,8 @@ func SetupAdminRoutes(router *gin.Engine) {
 		superAdminRoutes.POST("/user", adminHandler.CreateUser)
 		superAdminRoutes.GET("/user/:id", adminHandler.GetUserByID)
 		superAdminRoutes.PUT("/user/:id", adminHandler.UpdateUser)
+		superAdminRoutes.PUT("/user/:id/reset-password", adminHandler.ResetUserPassword)
+		superAdminRoutes.POST("/user/:id/reset-password", adminHandler.ResetUserPassword)
 		superAdminRoutes.PUT("/user/:id/role", adminHandler.AssignUserRole)
 		superAdminRoutes.PUT("/user/:id/status", adminHandler.ToggleUserStatus)
 		superAdminRoutes.DELETE("/user/:id", adminHandler.DeleteUser)

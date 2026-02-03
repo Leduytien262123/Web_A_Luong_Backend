@@ -31,15 +31,15 @@ const (
 
 // Cấp độ quyền
 const (
-	PermissionFull   = "full"   // Tất cả quyền
-	PermissionWrite  = "write"  // Tạo, cập nhật, đọc
-	PermissionRead   = "read"   // Chỉ đọc
-	PermissionNone   = "none"   // Không có quyền truy cập
+	PermissionFull  = "full"  // Tất cả quyền
+	PermissionWrite = "write" // Tạo, cập nhật, đọc
+	PermissionRead  = "read"  // Chỉ đọc
+	PermissionNone  = "none"  // Không có quyền truy cập
 )
 
 // Ràng buộc hệ thống
 const (
-	MaxOwnerAccounts = 1 // Chỉ cho phép một tài khoản owner
+	MaxOwnerAccounts = 1       // Chỉ cho phép một tài khoản owner
 	OwnerUsername    = "owner" // Tên người dùng owner cố định
 )
 
@@ -55,11 +55,11 @@ var RoleHierarchy = map[string]int{
 func HasPermission(role1, role2 string) bool {
 	level1, exists1 := RoleHierarchy[role1]
 	level2, exists2 := RoleHierarchy[role2]
-	
+
 	if !exists1 || !exists2 {
 		return false
 	}
-	
+
 	return level1 >= level2
 }
 
@@ -69,11 +69,11 @@ func CanManageRole(userRole, targetRole string) bool {
 	if userRole == RoleOwner && targetRole != RoleOwner {
 		return true
 	}
-	
+
 	// Admin có thể quản lý member và user, nhưng không phải owner hoặc admin khác
 	if userRole == RoleAdmin && (targetRole == RoleMember || targetRole == RoleUser) {
 		return true
 	}
-	
+
 	return false
 }

@@ -37,6 +37,17 @@ func (r *UserRepository) GetUserByUsername(username string) (*model.User, error)
 	return &user, nil
 }
 
+// GetUserByIdentifier tìm người dùng theo username, email hoặc phone
+func (r *UserRepository) GetUserByIdentifier(identifier string) (*model.User, error) {
+	var user model.User
+	err := r.db.Where("username = ? OR email = ? OR phone = ?", identifier, identifier, identifier).
+		First(&user).Error
+	if err != nil {
+		return nil, err
+	}
+	return &user, nil
+}
+
 func (r *UserRepository) GetUserByEmail(email string) (*model.User, error) {
 	var user model.User
 	err := r.db.Where("email = ?", email).First(&user).Error
@@ -64,7 +75,7 @@ func (r *UserRepository) GetUsersByRolesWithPagination(roles []string, name stri
 	var users []model.User
 	var total int64
 	db := r.db.Model(&model.User{})
-	
+
 	if len(roles) > 0 {
 		db = db.Where("role IN ?", roles)
 	}
@@ -77,11 +88,11 @@ func (r *UserRepository) GetUsersByRolesWithPagination(roles []string, name stri
 	if email != "" {
 		db = db.Where("email LIKE ?", "%"+email+"%")
 	}
-	
+
 	if err := db.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
-	
+
 	offset := (page - 1) * limit
 	err := db.Order("CASE WHEN role = 'super_admin' THEN 0 WHEN role = 'admin' THEN 1 ELSE 2 END, created_at DESC").
 		Offset(offset).Limit(limit).Find(&users).Error
@@ -183,11 +194,11 @@ func (r *UserRepository) GetUserStats() (map[string]interface{}, error) {
 // CheckUserCanManage kiểm tra người dùng có thể quản lý user mục tiêu không
 func (r *UserRepository) CheckUserCanManage(managerID, targetID uuid.UUID) (bool, error) {
 	var manager, target model.User
-	
+
 	if err := r.db.First(&manager, "id = ?", managerID).Error; err != nil {
 		return false, err
 	}
-	
+
 	if err := r.db.First(&target, "id = ?", targetID).Error; err != nil {
 		return false, err
 	}

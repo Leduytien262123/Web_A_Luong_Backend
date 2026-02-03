@@ -146,12 +146,11 @@ func (h *S3Handler) GetUploadUrl(c *gin.Context) {
 
 	helpers.SuccessResponse(c, "Tạo URL upload thành công", gin.H{
 		"upload_url": uploadURL.String(),
-		"view_url":   viewURL.String(),  // <--- AN TOÀN, LUÔN DÙNG ĐƯỢC
-		"direct_url": directURL,         // <--- Chỉ dùng nếu làm bucket PUBLIC
+		"view_url":   viewURL.String(), // <--- AN TOÀN, LUÔN DÙNG ĐƯỢC
+		"direct_url": directURL,        // <--- Chỉ dùng nếu làm bucket PUBLIC
 		"key":        objectKey,
 	})
 }
-
 
 // DeleteS3Object xóa file từ S3
 func (h *S3Handler) DeleteS3Object(c *gin.Context) {

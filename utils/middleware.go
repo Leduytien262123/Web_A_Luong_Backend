@@ -50,7 +50,7 @@ func AuthMiddleware() gin.HandlerFunc {
 			c.Abort()
 			return
 		}
-		
+
 		userID, err := uuid.Parse(userIDStr)
 		if err != nil {
 			helpers.UnauthorizedResponse(c, consts.MSG_UNAUTHORIZED)
@@ -70,7 +70,7 @@ func AuthMiddleware() gin.HandlerFunc {
 func CORSMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		origin := c.Request.Header.Get("Origin")
-		
+
 		// Set CORS headers
 		c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
 		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")

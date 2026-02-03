@@ -29,11 +29,11 @@ func ErrorResponse(c *gin.Context, statusCode int, message string, err error) {
 		Success: false,
 		Message: message,
 	}
-	
+
 	if err != nil {
 		response.Error = err.Error()
 	}
-	
+
 	c.JSON(statusCode, response)
 }
 

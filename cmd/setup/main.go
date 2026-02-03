@@ -24,7 +24,7 @@ func main() {
 	// Check if owner already exists
 	var ownerCount int64
 	db.Model(&model.User{}).Where("role = ?", "owner").Count(&ownerCount)
-	
+
 	if ownerCount > 0 {
 		log.Println("Owner account already exists. Skipping creation.")
 		return
@@ -55,6 +55,6 @@ func main() {
 	log.Println("Username: owner")
 	log.Println("Password: owner123")
 	log.Println("⚠️  Please change the password after first login!")
-	
+
 	os.Exit(0)
 }

@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -487,12 +488,12 @@ func (h *AdminHandler) UpdateUser(c *gin.Context) {
 	if input.Phone != "" {
 		user.Phone = input.Phone
 	}
-	
+
 	// Cập nhật trạng thái hoạt động
 	if input.IsActive != nil && user.Role != "super_admin" {
 		user.IsActive = *input.IsActive
 	}
-	
+
 	// Không cho phép thay đổi role của super_admin
 	if user.Role != "super_admin" && input.Role != "" {
 		user.Role = input.Role
@@ -504,4 +505,54 @@ func (h *AdminHandler) UpdateUser(c *gin.Context) {
 	}
 
 	helpers.SuccessResponse(c, "Cập nhật thông tin người dùng thành công", user.ToResponse())
+}
+
+// ResetUserPassword cho Super Admin: đặt lại mật khẩu cho user khác
+func (h *AdminHandler) ResetUserPassword(c *gin.Context) {
+	idParam := c.Param("id")
+	userID, err := uuid.Parse(idParam)
+	if err != nil {
+		helpers.BadRequestResponse(c, "ID người dùng không hợp lệ")
+		return
+	}
+
+	var input model.ResetPasswordInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		helpers.BadRequestResponse(c, consts.MSG_VALIDATION_ERROR)
+		return
+	}
+
+	// Frontend sends { "password": "..." }
+	newPwd := input.Password
+	if newPwd == "" {
+		helpers.BadRequestResponse(c, consts.MSG_VALIDATION_ERROR)
+		return
+	}
+
+	user, err := h.userRepo.GetUserByID(userID)
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			helpers.ErrorResponse(c, http.StatusNotFound, consts.MSG_USER_NOT_FOUND, nil)
+			return
+		}
+		helpers.ErrorResponse(c, http.StatusInternalServerError, consts.MSG_INTERNAL_ERROR, err)
+		return
+	}
+
+	// Hash new password
+	hashed, err := helpers.HashPassword(newPwd)
+	if err != nil {
+		helpers.ErrorResponse(c, http.StatusInternalServerError, consts.MSG_INTERNAL_ERROR, err)
+		return
+	}
+	user.Password = hashed
+	now := time.Now()
+	user.PasswordChangedAt = &now
+
+	if err := h.userRepo.UpdateUser(user); err != nil {
+		helpers.ErrorResponse(c, http.StatusInternalServerError, consts.MSG_INTERNAL_ERROR, err)
+		return
+	}
+
+	helpers.SuccessResponse(c, "Đặt lại mật khẩu thành công", nil)
 }

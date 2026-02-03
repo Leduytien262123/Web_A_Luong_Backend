@@ -10,22 +10,22 @@ import (
 )
 
 type Category struct {
-	ID           uuid.UUID      `json:"id" gorm:"type:char(36);primaryKey"`
-	Name         string         `json:"name" gorm:"not null;size:255;index"`
-	Description  string         `json:"description" gorm:"type:text"`
-	Slug         string         `json:"slug" gorm:"unique;not null;size:255;index"`
-	IsActive     bool           `json:"is_active" gorm:"default:true;index"`
-	DisplayOrder int            `json:"display_order" gorm:"default:0;index"`
-	ShowOnMenu   bool           `json:"show_menu" gorm:"default:false"`
-	ShowOnHome   bool           `json:"show_home" gorm:"default:false"`
-	ShowOnFooter bool           `json:"show_footer" gorm:"default:false"`
-	PositionMenu int            `json:"position_menu" gorm:"default:0;index"`
-	PositionFooter int          `json:"position_footer" gorm:"default:0;index"`
-	PositionHome int            `json:"position_home" gorm:"default:0;index"`
-	Metadata     datatypes.JSON `json:"metadata" gorm:"type:json"`
-	CreatedAt    time.Time      `json:"created_at" gorm:"autoCreateTime"`
-	UpdatedAt    time.Time      `json:"updated_at" gorm:"autoUpdateTime"`
-	DeletedAt    gorm.DeletedAt `json:"-" gorm:"index"`
+	ID             uuid.UUID      `json:"id" gorm:"type:char(36);primaryKey"`
+	Name           string         `json:"name" gorm:"not null;size:255;index"`
+	Description    string         `json:"description" gorm:"type:text"`
+	Slug           string         `json:"slug" gorm:"unique;not null;size:255;index"`
+	IsActive       bool           `json:"is_active" gorm:"default:true;index"`
+	DisplayOrder   int            `json:"display_order" gorm:"default:0;index"`
+	ShowOnMenu     bool           `json:"show_menu" gorm:"default:false"`
+	ShowOnHome     bool           `json:"show_home" gorm:"default:false"`
+	ShowOnFooter   bool           `json:"show_footer" gorm:"default:false"`
+	PositionMenu   int            `json:"position_menu" gorm:"default:0;index"`
+	PositionFooter int            `json:"position_footer" gorm:"default:0;index"`
+	PositionHome   int            `json:"position_home" gorm:"default:0;index"`
+	Metadata       datatypes.JSON `json:"metadata" gorm:"type:json"`
+	CreatedAt      time.Time      `json:"created_at" gorm:"autoCreateTime"`
+	UpdatedAt      time.Time      `json:"updated_at" gorm:"autoUpdateTime"`
+	DeletedAt      gorm.DeletedAt `json:"-" gorm:"index"`
 
 	ParentID *uuid.UUID `json:"parent_id,omitempty" gorm:"type:char(36);index"`
 	Parent   *Category  `json:"parent_category,omitempty" gorm:"foreignKey:ParentID"`
@@ -60,55 +60,55 @@ func (c *Category) BeforeCreate(tx *gorm.DB) (err error) {
 }
 
 type CategoryInput struct {
-	Name         string            `json:"name" binding:"required,min=1,max=100"`
-	Description  string            `json:"description" binding:"max=500"`
-	Slug         string            `json:"slug" binding:"required,min=1,max=100"`
-	DisplayOrder *int              `json:"display_order,omitempty"`
-	IsActive     *bool             `json:"is_active,omitempty"`
-	ShowOnMenu   *bool             `json:"show_menu,omitempty"`
-	ShowOnHome   *bool             `json:"show_home,omitempty"`
-	ShowOnFooter *bool             `json:"show_footer,omitempty"`
-	PositionMenu *int              `json:"position_menu,omitempty"`
-	PositionFooter *int            `json:"position_footer,omitempty"`
-	PositionHome *int              `json:"position_home,omitempty"`
-	Metadata     *CategoryMetadata `json:"metadata,omitempty"`
-	ParentCategory *string         `json:"parent_category,omitempty"`
+	Name           string            `json:"name" binding:"required,min=1,max=100"`
+	Description    string            `json:"description" binding:"max=500"`
+	Slug           string            `json:"slug" binding:"required,min=1,max=100"`
+	DisplayOrder   *int              `json:"display_order,omitempty"`
+	IsActive       *bool             `json:"is_active,omitempty"`
+	ShowOnMenu     *bool             `json:"show_menu,omitempty"`
+	ShowOnHome     *bool             `json:"show_home,omitempty"`
+	ShowOnFooter   *bool             `json:"show_footer,omitempty"`
+	PositionMenu   *int              `json:"position_menu,omitempty"`
+	PositionFooter *int              `json:"position_footer,omitempty"`
+	PositionHome   *int              `json:"position_home,omitempty"`
+	Metadata       *CategoryMetadata `json:"metadata,omitempty"`
+	ParentCategory *string           `json:"parent_category,omitempty"`
 }
 
 type CategoryResponse struct {
-	ID           uuid.UUID         `json:"id"`
-	Name         string            `json:"name"`
-	Description  string            `json:"description"`
-	Slug         string            `json:"slug"`
-	DisplayOrder int               `json:"display_order"`
-	IsActive     bool              `json:"is_active"`
-	ShowOnMenu   bool              `json:"show_menu"`
-	ShowOnHome   bool              `json:"show_home"`
-	ShowOnFooter bool              `json:"show_footer"`
-	PositionMenu int               `json:"position_menu"`
-	PositionFooter int             `json:"position_footer"`
-	PositionHome int               `json:"position_home"`
-	Metadata     *CategoryMetadata `json:"metadata"` // Đổi từ datatypes.JSON sang *CategoryMetadata
-	Articles     []ArticleSummary  `json:"articles,omitempty"`
-	CreatedAt    time.Time         `json:"created_at"`
-	UpdatedAt    time.Time         `json:"updated_at"`
+	ID             uuid.UUID         `json:"id"`
+	Name           string            `json:"name"`
+	Description    string            `json:"description"`
+	Slug           string            `json:"slug"`
+	DisplayOrder   int               `json:"display_order"`
+	IsActive       bool              `json:"is_active"`
+	ShowOnMenu     bool              `json:"show_menu"`
+	ShowOnHome     bool              `json:"show_home"`
+	ShowOnFooter   bool              `json:"show_footer"`
+	PositionMenu   int               `json:"position_menu"`
+	PositionFooter int               `json:"position_footer"`
+	PositionHome   int               `json:"position_home"`
+	Metadata       *CategoryMetadata `json:"metadata"` // Đổi từ datatypes.JSON sang *CategoryMetadata
+	Articles       []ArticleSummary  `json:"articles,omitempty"`
+	CreatedAt      time.Time         `json:"created_at"`
+	UpdatedAt      time.Time         `json:"updated_at"`
 	ParentCategory *struct {
 		ID   uuid.UUID `json:"id"`
 		Name string    `json:"name"`
 	} `json:"parent_category,omitempty"`
-	Children     []CategoryResponse `json:"children,omitempty"`
+	Children []CategoryResponse `json:"children,omitempty"`
 }
 
 // ArticleSummary là dữ liệu bài viết trả về gọn nhẹ khi đính kèm trong danh mục
 type ArticleSummary struct {
-	ID          uuid.UUID  `json:"id"`
-	Title       string     `json:"title"`
-	Slug        string     `json:"slug"`
-	Description string     `json:"description"`
-	Status      string     `json:"status"`
-	PublishedAt *time.Time `json:"published_at"`
-	CreatedAt   time.Time  `json:"created_at"`
-	UpdatedAt   time.Time  `json:"updated_at"`
+	ID          uuid.UUID      `json:"id"`
+	Title       string         `json:"title"`
+	Slug        string         `json:"slug"`
+	Description string         `json:"description"`
+	Status      string         `json:"status"`
+	PublishedAt *time.Time     `json:"published_at"`
+	CreatedAt   time.Time      `json:"created_at"`
+	UpdatedAt   time.Time      `json:"updated_at"`
 	Metadata    datatypes.JSON `json:"metadata,omitempty"`
 	Content     datatypes.JSON `json:"content,omitempty"`
 }
@@ -116,20 +116,20 @@ type ArticleSummary struct {
 // ToResponse chuyển Category thành CategoryResponse
 func (c *Category) ToResponse() CategoryResponse {
 	response := CategoryResponse{
-		ID:           c.ID,
-		Name:         c.Name,
-		Description:  c.Description,
-		Slug:         c.Slug,
-		DisplayOrder: c.DisplayOrder,
-		IsActive:     c.IsActive,
-		ShowOnMenu:   c.ShowOnMenu,
-		ShowOnHome:   c.ShowOnHome,
-		ShowOnFooter: c.ShowOnFooter,
-		PositionMenu: c.PositionMenu,
+		ID:             c.ID,
+		Name:           c.Name,
+		Description:    c.Description,
+		Slug:           c.Slug,
+		DisplayOrder:   c.DisplayOrder,
+		IsActive:       c.IsActive,
+		ShowOnMenu:     c.ShowOnMenu,
+		ShowOnHome:     c.ShowOnHome,
+		ShowOnFooter:   c.ShowOnFooter,
+		PositionMenu:   c.PositionMenu,
 		PositionFooter: c.PositionFooter,
-		PositionHome: c.PositionHome,
-		CreatedAt:    c.CreatedAt,
-		UpdatedAt:    c.UpdatedAt,
+		PositionHome:   c.PositionHome,
+		CreatedAt:      c.CreatedAt,
+		UpdatedAt:      c.UpdatedAt,
 	}
 
 	// Parse metadata từ JSON sang struct

@@ -7,6 +7,7 @@ import (
 	"backend/internal/repo"
 	"encoding/json"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -99,11 +100,15 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	// Tìm người dùng theo username
-	user, err := h.userRepo.GetUserByUsername(input.Username)
+	// Tìm người dùng theo username/email/phone
+	user, err := h.userRepo.GetUserByIdentifier(input.Identifier)
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
-			helpers.ErrorResponse(c, http.StatusUnauthorized, consts.MSG_INVALID_CREDENTIALS, nil)
+			c.JSON(http.StatusBadRequest, gin.H{
+				"success": false,
+				"message": consts.MSG_INVALID_CREDENTIALS,
+				"code":    "INVALID_CREDENTIALS",
+			})
 			return
 		}
 		helpers.ErrorResponse(c, http.StatusInternalServerError, consts.MSG_INTERNAL_ERROR, err)
@@ -112,7 +117,11 @@ func (h *AuthHandler) Login(c *gin.Context) {
 
 	// Kiểm tra mật khẩu
 	if !helpers.CheckPasswordHash(input.Password, user.Password) {
-		helpers.ErrorResponse(c, http.StatusUnauthorized, consts.MSG_INVALID_CREDENTIALS, nil)
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": consts.MSG_INVALID_CREDENTIALS,
+			"code":    "INVALID_CREDENTIALS",
+		})
 		return
 	}
 
@@ -206,3 +215,63 @@ func (h *AuthHandler) UpdateProfile(c *gin.Context) {
 	helpers.SuccessResponse(c, consts.MSG_SUCCESS, user.ToResponse())
 }
 
+// ChangePassword allows a user to change their password.
+// Super Admins can change password without providing current password.
+func (h *AuthHandler) ChangePassword(c *gin.Context) {
+	userIDVal, exists := c.Get("userID")
+	if !exists {
+		helpers.UnauthorizedResponse(c, consts.MSG_UNAUTHORIZED)
+		return
+	}
+
+	var input model.ChangePasswordInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		helpers.BadRequestResponse(c, consts.MSG_VALIDATION_ERROR)
+		return
+	}
+
+	// basic confirm check
+	if input.NewPassword != input.ConfirmPassword {
+		helpers.BadRequestResponse(c, "Mật khẩu mới và xác nhận không khớp")
+		return
+	}
+
+	user, err := h.userRepo.GetUserByID(userIDVal.(uuid.UUID))
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			helpers.ErrorResponse(c, http.StatusNotFound, consts.MSG_USER_NOT_FOUND, nil)
+			return
+		}
+		helpers.ErrorResponse(c, http.StatusInternalServerError, consts.MSG_INTERNAL_ERROR, err)
+		return
+	}
+
+	// If not super_admin, require current password verification
+	if user.Role != "super_admin" {
+		if input.CurrentPassword == "" {
+			helpers.BadRequestResponse(c, "Cần cung cấp mật khẩu hiện tại")
+			return
+		}
+		if !helpers.CheckPasswordHash(input.CurrentPassword, user.Password) {
+			helpers.BadRequestResponse(c, "Mật khẩu hiện tại không đúng")
+			return
+		}
+	}
+
+	// Hash new password and update
+	hashed, err := helpers.HashPassword(input.NewPassword)
+	if err != nil {
+		helpers.ErrorResponse(c, http.StatusInternalServerError, consts.MSG_INTERNAL_ERROR, err)
+		return
+	}
+	user.Password = hashed
+	now := time.Now()
+	user.PasswordChangedAt = &now
+
+	if err := h.userRepo.UpdateUser(user); err != nil {
+		helpers.ErrorResponse(c, http.StatusInternalServerError, consts.MSG_INTERNAL_ERROR, err)
+		return
+	}
+
+	helpers.SuccessResponse(c, "Đổi mật khẩu thành công", nil)
+}

@@ -28,6 +28,7 @@ func SetupAuthRoutes(router *gin.Engine) {
 	{
 		protected.GET("/profile", authHandler.GetProfile)
 		protected.PUT("/profile", authHandler.UpdateProfile)
+		protected.PUT("/password", authHandler.ChangePassword)
 	}
 
 	// Health check endpoint - API ngoài lề
@@ -52,10 +53,10 @@ func SetupAuthRoutes(router *gin.Engine) {
 			"server": "Shop Backend",
 			"status": "running",
 			"endpoints": gin.H{
-				"auth":     "/api/auth/*",
-				"public":   "/api/*",
-				"admin":    "/api/admin/*",
-				"health":   "/health",
+				"auth":   "/api/auth/*",
+				"public": "/api/*",
+				"admin":  "/api/admin/*",
+				"health": "/health",
 			},
 		})
 	})

@@ -25,11 +25,11 @@ type User struct {
 	LoginAttempts     int            `json:"login_attempts" gorm:"default:0"`
 	LockedUntil       *time.Time     `json:"locked_until"`
 	Role              string         `json:"role" gorm:"not null;default:admin;size:20;index"` // super_admin hoặc admin
-	
-	CreatedAt         time.Time      `json:"created_at" gorm:"autoCreateTime"`
-	UpdatedAt         time.Time      `json:"updated_at" gorm:"autoUpdateTime"`
-	DeletedAt         gorm.DeletedAt `json:"-" gorm:"index"`
-	
+
+	CreatedAt time.Time      `json:"created_at" gorm:"autoCreateTime"`
+	UpdatedAt time.Time      `json:"updated_at" gorm:"autoUpdateTime"`
+	DeletedAt gorm.DeletedAt `json:"-" gorm:"index"`
+
 	// Quan hệ (constraints handled manually in database.go)
 	Articles []Article `json:"articles,omitempty" gorm:"foreignKey:AuthorID"`
 }
@@ -92,22 +92,34 @@ type AdminUserUpdateInput struct {
 }
 
 type LoginInput struct {
-	Username string `json:"username" binding:"required"`
-	Password string `json:"password" binding:"required"`
+	Identifier string `json:"username" binding:"required"`
+	Password   string `json:"password" binding:"required"`
+}
+
+// ChangePasswordInput dùng cho API đổi mật khẩu
+type ChangePasswordInput struct {
+	CurrentPassword string `json:"current_password" binding:"-"`
+	NewPassword     string `json:"new_password" binding:"required,min=6,max=100"`
+	ConfirmPassword string `json:"confirm_password" binding:"required"`
+}
+
+// ResetPasswordInput dùng cho Super Admin reset mật khẩu user khác
+type ResetPasswordInput struct {
+	Password string `json:"password" binding:"required,min=6,max=100"`
 }
 
 type UserResponse struct {
-	ID              uuid.UUID `json:"id"`
-	Username        string    `json:"username"`
-	Email           string    `json:"email"`
-	Phone           string    `json:"phone"`
-	FullName        string    `json:"full_name"`
-	Avatar          []Avatar  `json:"avatar"`
-	Role            string    `json:"role"`
-	IsActive        bool      `json:"is_active"`
-	ArticleCount    int       `json:"article_count"` // Số bài viết đã tạo
-	CreatedAt       time.Time `json:"created_at"`
-	UpdatedAt       time.Time `json:"updated_at"`
+	ID           uuid.UUID `json:"id"`
+	Username     string    `json:"username"`
+	Email        string    `json:"email"`
+	Phone        string    `json:"phone"`
+	FullName     string    `json:"full_name"`
+	Avatar       []Avatar  `json:"avatar"`
+	Role         string    `json:"role"`
+	IsActive     bool      `json:"is_active"`
+	ArticleCount int       `json:"article_count"` // Số bài viết đã tạo
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
 }
 
 func (u *User) ToResponse() UserResponse {
