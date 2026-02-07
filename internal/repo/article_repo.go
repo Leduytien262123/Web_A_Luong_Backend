@@ -153,6 +153,23 @@ func (r *ArticleRepo) GetFeatured(limit int) ([]model.Article, error) {
 	return articles, nil
 }
 
+// GetAllPublishedOrdered lấy tất cả bài viết đã xuất bản (limit tùy chọn) sắp xếp theo view_count desc
+func (r *ArticleRepo) GetAllPublishedOrdered(limit int) ([]model.Article, error) {
+	var articles []model.Article
+
+	query := r.db.Preload("Author").Preload("Category").
+		Where("status IN ? AND is_active = ?", publishedStatuses, true).
+		Order("view_count DESC").
+		Order("published_at DESC").
+		Order("created_at DESC").
+		Limit(limit)
+
+	if err := query.Find(&articles).Error; err != nil {
+		return nil, err
+	}
+	return articles, nil
+}
+
 // GetPublishedBySlug lấy bài viết public theo slug
 func (r *ArticleRepo) GetPublishedBySlug(slug string) (*model.Article, error) {
 	var article model.Article

@@ -329,6 +329,41 @@ func (h *ArticleHandler) GetPublicArticles(c *gin.Context) {
 	})
 }
 
+// GetAllPublicArticles trả về tất cả bài viết đã xuất bản (không phân trang)
+// Dùng cho CSR khi cần tải full danh sách để phục vụ chức năng tìm kiếm client-side
+func (h *ArticleHandler) GetAllPublicArticles(c *gin.Context) {
+	// Sử dụng max int làm limit để lấy hết
+	maxLimit := int(^uint(0) >> 1)
+
+	// Lấy chỉ các bài đã xuất bản và active, sắp xếp theo view_count desc
+	articles, err := h.articleRepo.GetAllPublishedOrdered(maxLimit)
+	if err != nil {
+		helpers.ErrorResponse(c, http.StatusInternalServerError, "Không thể lấy danh sách bài viết", err)
+		return
+	}
+	if err != nil {
+		helpers.ErrorResponse(c, http.StatusInternalServerError, "Không thể lấy danh sách bài viết", err)
+		return
+	}
+
+	var response []model.ArticleResponse
+	for _, article := range articles {
+		response = append(response, article.ToResponse())
+	}
+
+	// Đính kèm tên tags
+	h.attachTagNamesToResponses(response)
+
+	c.JSON(http.StatusOK, helpers.Response{
+		Success: true,
+		Message: "Lấy tất cả bài viết thành công",
+		Data: map[string]interface{}{
+			"articles": response,
+			"total":    len(response),
+		},
+	})
+}
+
 // GetArticleByID lấy bài viết theo ID
 func (h *ArticleHandler) GetArticleByID(c *gin.Context) {
 	idStr := c.Param("id")

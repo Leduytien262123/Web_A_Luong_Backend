@@ -140,12 +140,19 @@ func (h *CategoryHandler) CreateCategory(c *gin.Context) {
 // GetCategories lấy tất cả danh mục dạng tree
 func (h *CategoryHandler) GetCategories(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
+	limitStr := c.Query("limit")
+	if limitStr == "" {
+		limitStr = c.Query("length")
+	}
+	if limitStr == "" {
+		limitStr = "100"
+	}
+	limit, _ := strconv.Atoi(limitStr)
 	if page < 1 {
 		page = 1
 	}
 	if limit < 1 || limit > 100 {
-		limit = 10
+		limit = 100
 	}
 	withArticles := c.Query("with_articles") == "true"
 	treeView := c.DefaultQuery("tree", "true") == "true" // Mặc định là tree view

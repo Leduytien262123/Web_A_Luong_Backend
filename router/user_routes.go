@@ -31,6 +31,7 @@ func SetupUserRoutes(router *gin.Engine) {
 		publicArticles := public.Group("/articles")
 		{
 			publicArticles.GET("/featured", articleHandler.GetFeaturedArticles)
+			publicArticles.GET("/all", articleHandler.GetAllPublicArticles)
 			publicArticles.GET("", articleHandler.GetPublicArticles)
 			publicArticles.GET("/:slug", articleHandler.GetArticleBySlugPublic)
 		}
