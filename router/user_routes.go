@@ -14,6 +14,7 @@ func SetupUserRoutes(router *gin.Engine) {
 	tagHandler := handle.NewTagHandler()
 	s3Handler := handle.NewS3Handler()
 	homepageSectionHandler := handle.NewHomepageSectionHandler()
+	sitemapHandler := handle.NewSitemapHandler()
 
 	// Routes công khai - không cần xác thực
 	public := router.Group("/api")
@@ -48,6 +49,14 @@ func SetupUserRoutes(router *gin.Engine) {
 		{
 			publicHomepageSections.GET("", homepageSectionHandler.GetPublicSections)
 			publicHomepageSections.GET("/:type_key", homepageSectionHandler.GetPublicSectionByTypeKey)
+		}
+
+		// Sitemap sources for Nuxt
+		sitemap := public.Group("/__sitemap__")
+		{
+			sitemap.GET("/tags/urls", sitemapHandler.GetTagsURLs)
+			sitemap.GET("/categories/urls", sitemapHandler.GetCategoriesURLs)
+			sitemap.GET("/articles/urls", sitemapHandler.GetArticlesURLs)
 		}
 	}
 }

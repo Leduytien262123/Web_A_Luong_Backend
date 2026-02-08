@@ -4,6 +4,7 @@ import (
 	"backend/app"
 	"backend/internal/model"
 	"errors"
+	"time"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -148,4 +149,32 @@ func (r *TagRepo) SearchTags(keyword string, page, limit int, activeOnly bool) (
 		Offset(offset).Limit(limit).Find(&tags).Error
 
 	return tags, total, err
+}
+
+// GetAllSlugs trả về danh sách slug của tags (mặc định chỉ active)
+func (r *TagRepo) GetAllSlugs(activeOnly bool) ([]string, error) {
+	var slugs []string
+	query := r.db.Model(&model.Tag{}).Select("slug")
+	if activeOnly {
+		query = query.Where("is_active = ?", true)
+	}
+	err := query.Order("name ASC").Pluck("slug", &slugs).Error
+	return slugs, err
+}
+
+// GetAllSlugsWithUpdatedAt trả về slug và updated_at cho các tags
+func (r *TagRepo) GetAllSlugsWithUpdatedAt(activeOnly bool) ([]struct{
+	Slug string
+	UpdatedAt time.Time
+}, error) {
+	var rows []struct{
+		Slug string
+		UpdatedAt time.Time
+	}
+	query := r.db.Model(&model.Tag{}).Select("slug, updated_at")
+	if activeOnly {
+		query = query.Where("is_active = ?", true)
+	}
+	err := query.Order("name ASC").Find(&rows).Error
+	return rows, err
 }

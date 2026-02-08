@@ -5,6 +5,7 @@ import (
 	"backend/internal/model"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -368,4 +369,33 @@ func (r *ArticleRepo) CheckSlugExists(slug string, excludeID uuid.UUID) (bool, e
 	}
 	err := query.Count(&count).Error
 	return count > 0, err
+}
+
+// GetPublishedSlugs trả về danh sách slug của các bài viết đã xuất bản
+func (r *ArticleRepo) GetPublishedSlugs() ([]string, error) {
+	var slugs []string
+	err := r.db.Model(&model.Article{}).
+		Where("status IN ? AND is_active = ?", publishedStatuses, true).
+		Order("published_at DESC").Pluck("slug", &slugs).Error
+	return slugs, err
+}
+
+// GetPublishedSlugsWithUpdatedAt trả về slug và updated_at của các bài đã xuất bản
+func (r *ArticleRepo) GetPublishedSlugsWithUpdatedAt(limit int) ([]struct{
+	Slug string
+	UpdatedAt time.Time
+}, error) {
+	var rows []struct{
+		Slug string
+		UpdatedAt time.Time
+	}
+	query := r.db.Model(&model.Article{}).
+		Select("slug, updated_at").
+		Where("status IN ? AND is_active = ?", publishedStatuses, true).
+		Order("published_at DESC")
+	if limit > 0 {
+		query = query.Limit(limit)
+	}
+	err := query.Find(&rows).Error
+	return rows, err
 }

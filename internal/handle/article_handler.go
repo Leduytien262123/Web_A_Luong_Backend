@@ -341,10 +341,6 @@ func (h *ArticleHandler) GetAllPublicArticles(c *gin.Context) {
 		helpers.ErrorResponse(c, http.StatusInternalServerError, "Không thể lấy danh sách bài viết", err)
 		return
 	}
-	if err != nil {
-		helpers.ErrorResponse(c, http.StatusInternalServerError, "Không thể lấy danh sách bài viết", err)
-		return
-	}
 
 	var response []model.ArticleResponse
 	for _, article := range articles {

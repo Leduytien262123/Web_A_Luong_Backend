@@ -4,6 +4,7 @@ import (
 	"backend/app"
 	"backend/internal/model"
 	"errors"
+	"time"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -156,6 +157,23 @@ func (r *CategoryRepo) GetAllWithArticlesAndPagination(page, limit int) ([]model
 	return categories, total, err
 }
 
+// GetAllSlugsWithUpdatedAt trả về slug và updated_at của categories
+func (r *CategoryRepo) GetAllSlugsWithUpdatedAt(activeOnly bool) ([]struct{
+	Slug string
+	UpdatedAt time.Time
+}, error) {
+	var rows []struct{
+		Slug string
+		UpdatedAt time.Time
+	}
+	query := r.db.Model(&model.Category{}).Select("slug, updated_at")
+	if activeOnly {
+		query = query.Where("is_active = ?", true)
+	}
+	err := query.Order("display_order ASC, name ASC").Find(&rows).Error
+	return rows, err
+}
+
 // GetHomeCategoriesWithArticles lấy các danh mục có show_on_home = true kèm bài viết đã xuất bản
 // limitPerCategory: số lượng bài viết lấy cho mỗi danh mục (0 = không giới hạn)
 func (r *CategoryRepo) GetHomeCategoriesWithArticles(limitPerCategory int) ([]model.Category, error) {
@@ -262,4 +280,15 @@ func (r *CategoryRepo) GetByNameWithPagination(name string, includeArticles bool
 		Find(&categories).Error
 
 	return categories, total, err
+}
+
+// GetAllSlugs trả về danh sách slug của categories (mặc định chỉ active)
+func (r *CategoryRepo) GetAllSlugs(activeOnly bool) ([]string, error) {
+	var slugs []string
+	query := r.db.Model(&model.Category{}).Select("slug")
+	if activeOnly {
+		query = query.Where("is_active = ?", true)
+	}
+	err := query.Order("display_order ASC, name ASC").Pluck("slug", &slugs).Error
+	return slugs, err
 }

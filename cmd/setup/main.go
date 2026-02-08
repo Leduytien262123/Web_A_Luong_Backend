@@ -31,6 +31,7 @@ func main() {
 	}
 
 	// Create default owner account
+	// Tài khoản dev: owner / owner123
 	password := "owner123A@" // Default password - should be changed after first login
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
